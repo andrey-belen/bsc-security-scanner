@@ -132,3 +132,4 @@ site/
 
 # Package manager
 requirements-simple.txt
+.mcp.json
