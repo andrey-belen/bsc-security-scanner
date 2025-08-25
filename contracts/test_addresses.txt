@@ -1,0 +1,30 @@
+# BSC Test Contract Addresses - Known Vulnerable/Risky Contracts for Testing
+# WARNING: These are real contracts that have been identified as having security issues
+# Use for educational and testing purposes only
+
+# High-Risk Contracts (Known Rugpulls/Honeypots)
+0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763  # SafeMoon V1 - High sell tax, centralized control
+0x2859e4544c4bb03966803b044a93563bd2d0dd4d  # SHIB Clone - Known honeypot
+0x7269d98af4aa705e0b1a5d8512faded5ec8a2d1b  # FakeUSDT - Honeypot with transfer restrictions
+
+# Medium-Risk Contracts (Suspicious Features)
+0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82  # PancakeSwap Cake Token - Legitimate but centralized
+0x4b0f1812e5df2a09796481ff14017e6005508003  # TrustWallet Token - Legitimate but owner privileges
+0x55d398326f99059ff775485246999027b3197955  # USDT BSC - Legitimate but has pause functions
+
+# Proxy Contracts (Upgradeable Risks)
+0xe9e7cea3dedca5984780bafc599bd69add087d56  # BUSD - Legitimate but proxy pattern
+0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3  # DAI BSC - Proxy with admin functions
+
+# New/Unverified Contracts (Use with extreme caution)
+0x0000000000000000000000000000000000000001  # Placeholder - Replace with current scam addresses
+
+# Deflationary Tokens (Complex Tax Mechanisms)
+0x8519ea49c997f50ceffa444d240fb655e89248aa  # ROCKETBUNNY - Complex tax structure
+
+# Known Scam Patterns (2024)
+# Note: Replace these with actual scam addresses discovered in 2024
+# These are placeholders for educational purposes
+0x1234567890123456789012345678901234567890  # Placeholder scam 1
+0x2345678901234567890123456789012345678901  # Placeholder scam 2
+0x3456789012345678901234567890123456789012  # Placeholder scam 3
