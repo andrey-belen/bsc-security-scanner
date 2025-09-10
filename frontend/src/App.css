@@ -1,0 +1,186 @@
+/* BSC Security Scanner Styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset and base styles */
+#root {
+  min-height: 100vh;
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom gradient backgrounds */
+.bg-gradient-security {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-risk-high {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+}
+
+.bg-gradient-risk-medium {
+  background: linear-gradient(135deg, #feca57 0%, #ff9f43 100%);
+}
+
+.bg-gradient-risk-low {
+  background: linear-gradient(135deg, #48cae4 0%, #0077b6 100%);
+}
+
+/* Risk level specific styles */
+.risk-critical {
+  @apply bg-red-100 text-red-800 border-red-300;
+}
+
+.risk-high {
+  @apply bg-orange-100 text-orange-800 border-orange-300;
+}
+
+.risk-medium {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
+}
+
+.risk-low {
+  @apply bg-green-100 text-green-800 border-green-300;
+}
+
+.risk-very-low {
+  @apply bg-emerald-100 text-emerald-800 border-emerald-300;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+/* Form focus styles */
+.form-input:focus {
+  @apply ring-2 ring-blue-500 border-blue-500;
+}
+
+/* Button hover effects */
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg transition-all duration-200;
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200;
+}
+
+/* Card styles */
+.card-custom {
+  @apply bg-white rounded-lg shadow-md border border-gray-200 p-6 transition-all duration-200;
+}
+
+.card-custom:hover {
+  @apply shadow-lg;
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply animate-pulse bg-gray-300 rounded;
+}
+
+/* Status indicators */
+.status-running {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800;
+}
+
+.status-completed {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800;
+}
+
+.status-failed {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800;
+}
+
+/* Progress bar animations */
+.progress-bar {
+  @apply transition-all duration-500 ease-out;
+}
+
+/* Typography */
+.text-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .card-custom {
+    @apply p-4;
+  }
+  
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    @apply text-sm py-2 px-3;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
