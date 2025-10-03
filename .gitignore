@@ -134,3 +134,8 @@ site/
 # Package manager
 requirements-simple.txt
 .mcp.json
+/database
+/reports
+/reports
+test_enhanced_scanner.py
+/tests
