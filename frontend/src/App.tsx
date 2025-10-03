@@ -4,7 +4,7 @@ import LoadingState from './components/LoadingState';
 import ScanResults from './components/ScanResults';
 import { ApiService } from './services/api';
 import { ScanResult, AnalysisStatus } from './types/api';
-import { Shield, Github, ExternalLink } from 'lucide-react';
+import { Shield, Github, ExternalLink, Trash2 } from 'lucide-react';
 import './App.css';
 
 type AppState = 'form' | 'loading' | 'results' | 'error';
@@ -17,6 +17,8 @@ function App() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isQuickScan, setIsQuickScan] = useState(false);
   const [currentAddress, setCurrentAddress] = useState('');
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [cacheMessage, setCacheMessage] = useState('');
 
   // Timer for elapsed time during analysis
   useEffect(() => {
@@ -75,6 +77,31 @@ function App() {
     setElapsedTime(0);
   };
 
+  const handleClearCache = async () => {
+    setIsClearingCache(true);
+    setCacheMessage('');
+
+    try {
+      const result = await ApiService.clearCache();
+      setCacheMessage('✓ Cache cleared successfully');
+      console.log('Cache cleared:', result);
+
+      // Clear message after 3 seconds
+      setTimeout(() => {
+        setCacheMessage('');
+      }, 3000);
+    } catch (err) {
+      console.error('Failed to clear cache:', err);
+      setCacheMessage('✗ Failed to clear cache');
+
+      setTimeout(() => {
+        setCacheMessage('');
+      }, 3000);
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0d1117]">
       {/* Header */}
@@ -89,6 +116,20 @@ function App() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {cacheMessage && (
+                <span className={`text-sm ${cacheMessage.includes('✓') ? 'text-green-400' : 'text-red-400'}`}>
+                  {cacheMessage}
+                </span>
+              )}
+              <button
+                onClick={handleClearCache}
+                disabled={isClearingCache}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#21262d] text-[#e6edf3] rounded-lg hover:bg-[#30363d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Clear all caches"
+              >
+                <Trash2 className="h-4 w-4" />
+                {isClearingCache ? 'Clearing...' : 'Clear Cache'}
+              </button>
               <a
                 href="https://github.com"
                 target="_blank"

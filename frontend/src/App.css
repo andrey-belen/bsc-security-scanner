@@ -6,6 +6,7 @@
 /* Reset and base styles */
 #root {
   min-height: 100vh;
+  width: 100%;
 }
 
 /* Custom animations */
@@ -51,6 +52,7 @@
 .animate-pulse-slow {
   animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
 
 /* Custom gradient backgrounds */
 .bg-gradient-security {

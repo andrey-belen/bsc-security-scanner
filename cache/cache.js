@@ -1,111 +1,62 @@
 /**
- * In-memory cache layer using node-cache
- * Provides fast access to recently scanned contracts (5-minute TTL)
+ * Simple in-memory cache for Node.js backend
  */
 
 const NodeCache = require('node-cache');
 
-// Initialize cache with 5-minute TTL (300 seconds)
-const cache = new NodeCache({
-  stdTTL: parseInt(process.env.CACHE_TTL) || 300,
-  checkperiod: 60, // Check for expired keys every 60 seconds
-  useClones: false // Performance: don't clone objects
-});
+// Create cache instance with 5 minute TTL
+const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 /**
- * Get cached scan result
- * @param {string} address - Contract address
- * @returns {object|null} - Cached result or null
+ * Get value from cache
+ * @param {string} key - Cache key
+ * @returns {any} Cached value or undefined
  */
-function getCached(address) {
-  const key = address.toLowerCase();
-  const value = cache.get(key);
-
-  if (value) {
-    console.log(`✓ Cache HIT: ${address}`);
-    return {
-      ...value,
-      cached: true,
-      cache_source: 'memory'
-    };
-  }
-
-  console.log(`✗ Cache MISS: ${address}`);
-  return null;
+function getCached(key) {
+  return cache.get(key);
 }
 
 /**
- * Store scan result in cache
- * @param {string} address - Contract address
- * @param {object} results - Scan results to cache
- * @returns {boolean} - Success status
+ * Set value in cache
+ * @param {string} key - Cache key
+ * @param {any} value - Value to cache
+ * @param {number} ttl - Time to live in seconds (optional)
  */
-function setCached(address, results) {
-  try {
-    const key = address.toLowerCase();
-    cache.set(key, results);
-    console.log(`✓ Cached result for: ${address}`);
-    return true;
-  } catch (error) {
-    console.error('Error setting cache:', error.message);
-    return false;
+function setCached(key, value, ttl) {
+  if (ttl) {
+    cache.set(key, value, ttl);
+  } else {
+    cache.set(key, value);
   }
 }
 
 /**
- * Invalidate cache entry
- * @param {string} address - Contract address
- * @returns {boolean} - Success status
+ * Clear all cache
  */
-function invalidate(address) {
-  const key = address.toLowerCase();
-  const deleted = cache.del(key);
-  if (deleted) {
-    console.log(`✓ Invalidated cache for: ${address}`);
-  }
-  return deleted > 0;
-}
-
-/**
- * Clear all cache entries
- */
-function clearAll() {
+function clearCache() {
   cache.flushAll();
-  console.log('✓ Cache cleared');
+  console.log('Memory cache cleared');
 }
 
 /**
  * Get cache statistics
- * @returns {object} - Cache stats
+ * @returns {object} Cache stats
  */
 function getStats() {
   const stats = cache.getStats();
-  const keys = cache.keys();
-
   return {
+    keys: cache.keys().length,
     hits: stats.hits,
     misses: stats.misses,
-    keys_count: keys.length,
-    hit_rate: stats.hits + stats.misses > 0
-      ? ((stats.hits / (stats.hits + stats.misses)) * 100).toFixed(2) + '%'
-      : '0%'
+    ksize: stats.ksize,
+    vsize: stats.vsize
   };
 }
 
-// Handle cache events
-cache.on('expired', (key, value) => {
-  console.log(`⏱ Cache expired: ${key}`);
-});
-
-cache.on('flush', () => {
-  console.log('🗑 Cache flushed');
-});
-
 module.exports = {
-  cache,
   getCached,
   setCached,
-  invalidate,
-  clearAll,
-  getStats
+  clearCache,
+  getStats,
+  cache
 };

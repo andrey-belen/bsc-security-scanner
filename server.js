@@ -373,6 +373,102 @@ app.get('/api/analyze/:analysisId/status', (req, res) => {
   }
 });
 
+/**
+ * Clear all caches (Python cache, database cache, and memory cache)
+ */
+app.post('/api/cache/clear', async (req, res) => {
+  try {
+    console.log('Clearing all caches...');
+    let responseSent = false;
+
+    // Clear Python file cache by running Python script
+    const clearCachePython = spawn('python3', ['-c', `
+from utils.cache import memory_cache, file_cache
+memory_cache.clear()
+file_cache.clear()
+print('Python cache cleared')
+`], { cwd: __dirname });
+
+    let pythonOutput = '';
+    clearCachePython.stdout.on('data', (data) => {
+      pythonOutput += data.toString();
+    });
+
+    clearCachePython.on('close', async (code) => {
+      if (responseSent) return; // Response already sent by timeout
+
+      if (code === 0) {
+        console.log('Python cache cleared successfully');
+      } else {
+        console.warn('Python cache clear had issues, continuing...');
+      }
+
+      // Clear database cache (delete all scan results)
+      try {
+        const { clearAllScans } = require('./database/db');
+        if (clearAllScans) {
+          await clearAllScans(); // Clear all scans
+          console.log('Database cache cleared');
+        }
+      } catch (dbError) {
+        console.warn('Database clear skipped:', dbError.message);
+      }
+
+      // Clear Node.js memory cache
+      const { clearCache } = require('./cache/cache');
+      if (clearCache) {
+        clearCache();
+        console.log('Node.js memory cache cleared');
+      }
+
+      // Clear .cache directory
+      try {
+        const cacheDir = path.join(__dirname, '.cache');
+        await fs.rm(cacheDir, { recursive: true, force: true });
+        console.log('.cache directory cleared');
+      } catch (fsError) {
+        console.warn('.cache directory clear skipped:', fsError.message);
+      }
+
+      if (!responseSent) {
+        responseSent = true;
+        res.json({
+          success: true,
+          message: 'All caches cleared successfully',
+          cleared: {
+            pythonCache: code === 0,
+            databaseCache: true,
+            memoryCache: true,
+            fileCache: true
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      if (!responseSent) {
+        responseSent = true;
+        clearCachePython.kill();
+        res.json({
+          success: true,
+          message: 'Cache clear initiated (Python cache may still be clearing)',
+          timestamp: new Date().toISOString()
+        });
+      }
+    }, 5000);
+
+  } catch (error) {
+    console.error('Cache clear error:', error);
+    res.status(500).json({
+      error: 'Failed to clear cache',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);

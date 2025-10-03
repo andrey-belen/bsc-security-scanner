@@ -205,6 +205,14 @@ export class ApiService {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
+
+  /**
+   * Clear all caches (Python, database, and memory)
+   */
+  static async clearCache(): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/cache/clear');
+    return response.data;
+  }
 }
 
 export default ApiService;

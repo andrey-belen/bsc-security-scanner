@@ -1,6 +1,7 @@
 """
-Core Security Analyzer - Functional security analysis with proper BSCScan integration
-Focuses on actual security checks without overcomplicating
+Core Security Analyzer - Functional security analysis with Etherscan API integration
+Uses Etherscan API for BSCScan data retrieval (BSCScan merged with Etherscan infrastructure)
+No web scraping - API only
 """
 
 import requests
@@ -15,21 +16,26 @@ from config import BSC_CONFIG, get_rpc_endpoint
 
 class CoreSecurityAnalyzer:
     """
-    Simplified but functional security analyzer
-    Performs real checks with proper API integration
+    Core security analyzer using Etherscan API for BSCScan integration
+    Note: BSCScan now uses Etherscan infrastructure, so ETHERSCAN_API_KEY works
+    Implements verification, ownership, function, and token analysis
     """
 
     def __init__(self):
         self.w3 = Web3(Web3.HTTPProvider(get_rpc_endpoint()))
         self.bscscan_api = BSC_CONFIG["explorer_api"]
-        # Try Etherscan key first (BSCScan now uses Etherscan), fallback to legacy BSCSCAN_API_KEY
+        # BSCScan now uses Etherscan API infrastructure - use ETHERSCAN_API_KEY
         self.api_key = os.getenv('ETHERSCAN_API_KEY') or os.getenv('BSCSCAN_API_KEY', '')
         self.findings = []
         self.risk_score = 0
+        self.is_stablecoin = False
+        self.has_safemath = False
+        self.is_known_infrastructure = False
+        self.positive_factors = []  # Track risk reduction factors
 
     def analyze_contract(self, address: str, quick_scan: bool = False) -> Dict:
         """
-        Main analysis function with real security checks
+        Main analysis function with real security checks using Etherscan API
 
         Args:
             address: Contract address to analyze
@@ -51,22 +57,35 @@ class CoreSecurityAnalyzer:
         if code == b'' or code == b'0x':
             return self._error_result(address, "No contract code at this address")
 
-        # Step 2: Get contract verification status
-        is_verified, source_code = self._check_verification(address)
+        # Step 2: Get contract verification status and source code via API
+        is_verified, source_code, abi, metadata = self._check_verification_api(address)
 
         # Step 3: Check ownership
-        owner_info = self._check_ownership(address)
+        owner_info = self._check_ownership(address, abi)
 
-        # Step 4: Analyze functions (from ABI or bytecode)
-        function_risks = self._analyze_functions(address, source_code)
+        # Step 4: Analyze contract inheritance if source available
+        inheritance_info = {}
+        if source_code:
+            inheritance_info = self._analyze_contract_inheritance(source_code)
 
-        # Step 5: Check for common red flags
+        # Step 5: Analyze functions (from ABI or bytecode)
+        function_risks = self._analyze_functions(address, source_code, abi)
+
+        # Step 6: Check event coverage if ABI available
+        event_coverage = {}
+        if abi:
+            event_coverage = self._check_event_coverage(abi)
+
+        # Step 7: Check for common red flags in source code
         red_flags = self._check_red_flags(address, source_code)
 
-        # Step 6: Check token info if ERC-20
-        token_info = self._get_token_info(address)
+        # Step 8: Check token info if ERC-20
+        token_info = self._get_token_info(address, abi)
 
-        # Step 7: Calculate risk score
+        # Step 8.5: Detect if this is a known stablecoin or legitimate centralized token
+        self._detect_token_type(address, token_info)
+
+        # Step 9: Calculate risk score
         self.risk_score = self._calculate_risk()
 
         return {
@@ -83,82 +102,144 @@ class CoreSecurityAnalyzer:
             "findings": self.findings,
             "risk_score": self.risk_score,
             "risk_level": self._get_risk_level(self.risk_score),
-            "analysis_confidence": 0.8 if is_verified else 0.5
+            "analysis_confidence": 0.9 if is_verified else 0.6
         }
 
-    def _check_verification(self, address: str) -> tuple[bool, Optional[str]]:
-        """Check if contract is verified using multiple methods"""
+    def _check_verification_api(self, address: str) -> tuple[bool, Optional[str], Optional[list], Optional[dict]]:
+        """
+        Check contract verification using Etherscan API
+        Note: BSCScan now uses Etherscan infrastructure, so this works for BSC contracts
 
-        # Method 1: Try BSCScan web scraping
+        Returns:
+            tuple: (is_verified, source_code, abi, metadata)
+        """
+        if not self.api_key:
+            self._add_finding(
+                "low",
+                "No API Key",
+                "ETHERSCAN_API_KEY not set. Get free BSCScan API key from bscscan.com/myapikey. Verification check unavailable.",
+                "verification"
+            )
+            return False, None, None, None
+
         try:
-            scrape_url = f"https://bscscan.com/address/{address}#code"
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            response = requests.get(scrape_url, headers=headers, timeout=10)
+            # Use Etherscan V2 multi-chain API to get source code
+            params = {
+                "chainid": BSC_CONFIG["chain_id"],  # 56 for BSC
+                "module": "contract",
+                "action": "getsourcecode",
+                "address": address,
+                "apikey": self.api_key
+            }
 
-            if response.status_code == 200:
-                html = response.text
-                # Check if contract is verified
-                if "Contract Source Code Verified" in html or "Exact Match" in html:
+            response = requests.get(self.bscscan_api, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data["status"] == "1" and data["result"]:
+                result = data["result"][0]
+                source_code = result.get("SourceCode", "")
+                abi = result.get("ABI", "")
+
+                # Extract metadata
+                metadata = {
+                    "compiler_version": result.get("CompilerVersion", ""),
+                    "optimization_used": result.get("OptimizationUsed", ""),
+                    "runs": result.get("Runs", ""),
+                    "contract_name": result.get("ContractName", ""),
+                    "evm_version": result.get("EVMVersion", ""),
+                    "library": result.get("Library", ""),
+                    "license_type": result.get("LicenseType", ""),
+                    "proxy": result.get("Proxy", "0"),
+                    "implementation": result.get("Implementation", "")
+                }
+
+                # Contract is verified if source code exists
+                if source_code and source_code != "":
+                    # Analyze compiler version for security issues (pass source for SafeMath detection)
+                    self._analyze_compiler_version(metadata["compiler_version"], source_code)
+
+                    # Check optimizer settings
+                    if metadata["optimization_used"] == "0":
+                        self._add_finding(
+                            "low",
+                            "Optimizer Disabled",
+                            "Contract compiled without optimization. May have higher gas costs but no security impact.",
+                            "compiler"
+                        )
+
+                    # Check if proxy contract
+                    if metadata["proxy"] == "1":
+                        self._add_finding(
+                            "medium",
+                            "Proxy Contract Detected",
+                            f"This is an upgradeable proxy contract. Implementation: {metadata['implementation'][:10]}...{metadata['implementation'][-8:] if metadata['implementation'] else 'Unknown'}",
+                            "proxy"
+                        )
+
                     self._add_finding(
                         "info",
                         "Contract Verified",
-                        "Contract source code is verified on BSCScan.",
+                        f"Contract source code is verified on BSCScan. Compiler: {metadata['compiler_version']}, License: {metadata['license_type']}",
                         "verification"
                     )
-                    return True, None  # We can see it's verified even without source
-                elif "Contract Source Code Not Verified" in html or "not verified" in html.lower():
+
+                    # Positive factor: verified contract reduces risk
+                    self.positive_factors.append(5)
+
+                    # Additional positive factor if optimizer enabled
+                    if metadata["optimization_used"] == "1":
+                        self.positive_factors.append(3)
+
+                    # Parse ABI if available
+                    try:
+                        import json
+                        abi_parsed = json.loads(abi) if abi and abi != "Contract source code not verified" else None
+                    except:
+                        abi_parsed = None
+
+                    return True, source_code, abi_parsed, metadata
+                else:
                     self._add_finding(
                         "medium",
                         "Contract Not Verified",
                         "Contract source code is not verified on BSCScan. This increases risk as code cannot be audited.",
                         "verification"
                     )
-                    self.risk_score += 20
-                    return False, None
+                    return False, None, None, None
+            else:
+                # API returned error or no result
+                self._add_finding(
+                    "medium",
+                    "Verification Check Failed",
+                    f"Unable to verify contract status via API: {data.get('message', 'Unknown error')}",
+                    "verification"
+                )
+                return False, None, None, None
+
+        except requests.exceptions.Timeout:
+            self._add_finding(
+                "low",
+                "Verification Check Timeout",
+                "BSCScan API request timed out. Continuing with bytecode analysis.",
+                "verification"
+            )
+            return False, None, None, None
         except Exception as e:
-            print(f"Web scraping check failed: {e}")
+            self._add_finding(
+                "low",
+                "Verification Check Error",
+                f"Error checking verification: {str(e)}",
+                "verification"
+            )
+            return False, None, None, None
 
-        # Method 2: Try to get ABI - if ABI exists, likely verified
-        try:
-            # Check if contract has readable functions (sign of verification)
-            code = self.w3.eth.get_code(address)
-            if len(code) > 100:  # Has substantial code
-                # Try calling common view functions to see if ABI is available
-                try:
-                    # Try ERC20 name() function
-                    name_abi = [{"constant": True, "inputs": [], "name": "name", "outputs": [{"name": "", "type": "string"}], "type": "function"}]
-                    contract = self.w3.eth.contract(address=address, abi=name_abi)
-                    name = contract.functions.name().call()
-
-                    # If we got here, contract has standard functions (likely legitimate)
-                    self._add_finding(
-                        "info",
-                        "Standard Contract Functions Detected",
-                        f"Contract implements standard ERC-20 functions. Token: {name}",
-                        "verification"
-                    )
-                    return False, None  # Not verified but has standard interface
-                except:
-                    pass
-        except Exception as e:
-            print(f"ABI check failed: {e}")
-
-        # Default: Unknown verification status
-        self._add_finding(
-            "low",
-            "Verification Status Unknown",
-            "Unable to confirm contract verification status. Proceeding with bytecode analysis.",
-            "verification"
-        )
-        self.risk_score += 10
-        return False, None
-
-    def _check_ownership(self, address: str) -> Dict:
-        """Check contract ownership status"""
-        owner_info = {"owner": None, "is_renounced": False}
+    def _check_ownership(self, address: str, abi: Optional[list]) -> Dict:
+        """Check contract ownership status with enhanced verification"""
+        owner_info = {"owner": None, "is_renounced": False, "owner_type": "unknown"}
 
         try:
-            # Try common owner() function
+            # Try standard owner() function
             owner_abi = [{
                 "constant": True,
                 "inputs": [],
@@ -181,16 +262,31 @@ class CoreSecurityAnalyzer:
                     "Contract ownership has been renounced (owner set to zero address). Contract cannot be modified.",
                     "ownership"
                 )
+                # Positive factor: renounced ownership reduces risk
+                self.positive_factors.append(15)
             else:
-                self._add_finding(
-                    "low",
-                    "Centralized Ownership",
-                    f"Contract has an active owner: {owner[:10]}...{owner[-8:]}. Owner may have privileged functions.",
-                    "ownership"
-                )
-                self.risk_score += 10
+                # Check if owner is a contract (multisig) or EOA
+                owner_code = self.w3.eth.get_code(owner)
+                if owner_code and owner_code != b'' and owner_code != b'0x':
+                    owner_info["owner_type"] = "contract"
+                    self._add_finding(
+                        "info",
+                        "Contract-Owned (Multisig/DAO)",
+                        f"Owner is a contract address (likely multisig or DAO): {owner[:10]}...{owner[-8:]}. Lower centralization risk.",
+                        "ownership"
+                    )
+                    # Positive factor: multisig ownership reduces risk
+                    self.positive_factors.append(10)
+                else:
+                    owner_info["owner_type"] = "EOA"
+                    self._add_finding(
+                        "medium",
+                        "EOA Owner (High Risk)",
+                        f"Owner is an externally owned account (EOA): {owner[:10]}...{owner[-8:]}. Single wallet controls all privileges. HIGH centralization risk.",
+                        "ownership"
+                    )
 
-        except Exception as e:
+        except Exception:
             # No owner() function or error
             self._add_finding(
                 "info",
@@ -201,94 +297,501 @@ class CoreSecurityAnalyzer:
 
         return owner_info
 
-    def _analyze_functions(self, address: str, source_code: Optional[str]) -> Dict:
-        """Analyze contract functions for dangerous patterns"""
+    def _analyze_functions(self, address: str, source_code: Optional[str], abi: Optional[list]) -> Dict:
+        """Analyze contract functions for dangerous patterns and privileges"""
         risks = {}
+        dangerous_found = []
+        privilege_functions = []
+        access_control = {"type": "unknown", "functions": []}
 
-        # Check for dangerous function names in bytecode
-        dangerous_selectors = {
-            "0x40c10f19": "mint",
-            "0xa9059cbb": "transfer",
-            "0x095ea7b3": "approve",
-            "0x23b872dd": "transferFrom",
-            "0x8456cb59": "pause",
-            "0x3f4ba83a": "unpause",
-            "0xf2fde38b": "transferOwnership"
-        }
+        if abi:
+            # Analyze each function in ABI
+            for item in abi:
+                if item.get("type") == "function":
+                    name = item.get("name", "")
+                    name_lower = name.lower()
+                    state_mutability = item.get("stateMutability", "")
 
-        code = self.w3.eth.get_code(address).hex()
+                    # Detect privilege functions
+                    privilege_keywords = ["mint", "burn", "pause", "unpause", "blacklist", "transferownership",
+                                        "upgradeto", "setfee", "settax", "ban", "grantRole", "revokeRole"]
 
-        found_dangerous = []
-        for selector, name in dangerous_selectors.items():
-            if selector[2:] in code:  # Remove 0x prefix
-                found_dangerous.append(name)
+                    for keyword in privilege_keywords:
+                        if keyword in name_lower:
+                            privilege_functions.append(name)
+                            break
 
-        if "mint" in found_dangerous:
+                    # Detect access control patterns
+                    if name_lower in ["onlyowner", "hasrole", "grantrole", "revokerole"]:
+                        access_control["functions"].append(name)
+
+                    # Specific dangerous function checks
+                    if "mint" in name_lower and name not in dangerous_found:
+                        dangerous_found.append("mint")
+
+                    if ("pause" in name_lower or "unpause" in name_lower) and "pause" not in dangerous_found:
+                        dangerous_found.append("pause")
+
+                    if ("blacklist" in name_lower or "ban" in name_lower) and "blacklist" not in dangerous_found:
+                        dangerous_found.append("blacklist")
+
+                    if ("setfee" in name_lower or "settax" in name_lower) and "fee_manipulation" not in dangerous_found:
+                        dangerous_found.append("fee_manipulation")
+
+                    # Critical: delegatecall and selfdestruct
+                    if "delegatecall" in name_lower:
+                        dangerous_found.append("delegatecall")
+                        self._add_finding(
+                            "critical",
+                            "Delegatecall Function",
+                            f"Function '{name}' uses delegatecall. This can execute arbitrary code and is extremely dangerous.",
+                            "dangerous_function"
+                        )
+
+                    if "selfdestruct" in name_lower or "destroy" in name_lower:
+                        dangerous_found.append("selfdestruct")
+                        self._add_finding(
+                            "critical",
+                            "Self-Destruct Function",
+                            f"Function '{name}' can destroy the contract. All funds could be lost permanently.",
+                            "dangerous_function"
+                        )
+
+                    # Proxy upgrade detection
+                    if "upgradeto" in name_lower:
+                        dangerous_found.append("upgradeable")
+                        self._add_finding(
+                            "high",
+                            "Upgradeable Contract",
+                            f"Function '{name}' allows contract upgrade. Implementation can be changed at any time.",
+                            "dangerous_function"
+                        )
+
+            # Determine access control type
+            if any("grantrole" in f.lower() or "hasrole" in f.lower() for f in access_control["functions"]):
+                access_control["type"] = "role_based"
+                self._add_finding(
+                    "info",
+                    "Role-Based Access Control",
+                    f"Contract uses role-based permissions. {len(privilege_functions)} privileged functions detected.",
+                    "access_control"
+                )
+            elif privilege_functions:
+                access_control["type"] = "owner_based"
+
+            # Report on privilege functions
+            if len(privilege_functions) > 5:
+                self._add_finding(
+                    "medium",
+                    "Many Privileged Functions",
+                    f"Contract has {len(privilege_functions)} privileged functions. High centralization risk.",
+                    "access_control"
+                )
+
+        else:
+            # Fallback: Check bytecode for function selectors
+            dangerous_selectors = {
+                "0x40c10f19": "mint",
+                "0x8456cb59": "pause",
+                "0x3f4ba83a": "unpause",
+                "0xf2fde38b": "transferOwnership"
+            }
+
+            code = self.w3.eth.get_code(address).hex()
+
+            for selector, name in dangerous_selectors.items():
+                if selector[2:] in code:  # Remove 0x prefix
+                    if name not in dangerous_found:
+                        dangerous_found.append(name)
+
+        # Add findings for dangerous functions
+        if "mint" in dangerous_found:
             self._add_finding(
                 "high",
                 "Mint Function Detected",
                 "Contract has a mint() function. Owner may be able to create unlimited tokens, diluting holder value.",
                 "dangerous_function"
             )
-            self.risk_score += 25
 
-        if "pause" in found_dangerous or "unpause" in found_dangerous:
+        if "pause" in dangerous_found:
             self._add_finding(
                 "medium",
                 "Pause Functionality",
                 "Contract can be paused, potentially freezing all transfers. Ensure this is expected behavior.",
                 "dangerous_function"
             )
-            self.risk_score += 15
 
-        risks["dangerous_functions"] = found_dangerous
+        if "blacklist" in dangerous_found:
+            self._add_finding(
+                "high",
+                "Blacklist Function Found",
+                "Contract contains blacklist functionality. Owner can prevent specific addresses from trading.",
+                "dangerous_function"
+            )
+
+        if "fee_manipulation" in dangerous_found:
+            self._add_finding(
+                "medium",
+                "Fee Manipulation Functions",
+                "Contract allows owner to modify fees/taxes. Verify fee limits are in place.",
+                "dangerous_function"
+            )
+
+        risks["dangerous_functions"] = dangerous_found
+        risks["privilege_functions"] = privilege_functions
+        risks["access_control"] = access_control
         return risks
 
+    def _analyze_compiler_version(self, compiler_version: str, source_code: Optional[str] = None):
+        """Analyze compiler version for security vulnerabilities with SafeMath detection"""
+        if not compiler_version:
+            return
+
+        try:
+            # Extract version number (e.g., "v0.5.16+commit.9c3226ce" -> "0.5.16")
+            import re
+            match = re.search(r'v?(\d+\.\d+\.\d+)', compiler_version)
+            if match:
+                version = match.group(1)
+                major, minor, patch = map(int, version.split('.'))
+
+                # Check for SafeMath in source code
+                if source_code:
+                    source_lower = source_code.lower()
+                    self.has_safemath = "safemath" in source_lower and "using safemath" in source_lower
+
+                # Flag Solidity versions before 0.8.0 (no overflow/underflow protection)
+                if major == 0 and minor < 8:
+                    # Versions 0.5.x and 0.6.x/0.7.x - flag based on SafeMath usage
+                    if self.has_safemath:
+                        # SafeMath mitigates the overflow risk
+                        self._add_finding(
+                            "low",
+                            "Old Compiler with SafeMath",
+                            f"Contract compiled with Solidity {version} (pre-0.8.0) but uses SafeMath library for overflow protection. Risk mitigated.",
+                            "compiler"
+                        )
+                    else:
+                        # No SafeMath - higher risk
+                        if minor < 6:
+                            # Very old versions without SafeMath
+                            self._add_finding(
+                                "high",
+                                "Critically Outdated Compiler",
+                                f"Contract compiled with very old Solidity {version} without SafeMath. Multiple known vulnerabilities.",
+                                "compiler"
+                            )
+                        else:
+                            # 0.6.x/0.7.x without SafeMath
+                            self._add_finding(
+                                "medium",
+                                "Old Compiler Without SafeMath",
+                                f"Contract compiled with Solidity {version} without SafeMath. Vulnerable to overflow/underflow attacks.",
+                                "compiler"
+                            )
+
+        except Exception as e:
+            print(f"Error analyzing compiler version: {e}")
+
+    def _analyze_contract_inheritance(self, source_code: str) -> Dict:
+        """Analyze contract inheritance patterns"""
+        inheritance = {
+            "ownable": False,
+            "pausable": False,
+            "access_control": False,
+            "erc20": False,
+            "proxy": False,
+            "reentrancy_guard": False
+        }
+
+        if not source_code:
+            return inheritance
+
+        source_lower = source_code.lower()
+
+        # Check for common patterns
+        if "ownable" in source_lower or "is ownable" in source_lower:
+            inheritance["ownable"] = True
+
+        if "pausable" in source_lower or "is pausable" in source_lower:
+            inheritance["pausable"] = True
+            self._add_finding(
+                "info",
+                "Pausable Contract",
+                "Contract inherits from Pausable. Owner may be able to pause token transfers.",
+                "inheritance"
+            )
+
+        if "accesscontrol" in source_lower or "is accesscontrol" in source_lower:
+            inheritance["access_control"] = True
+            self._add_finding(
+                "info",
+                "Role-Based Access Control",
+                "Contract uses AccessControl for role-based permissions. Check role assignments carefully.",
+                "inheritance"
+            )
+
+        if "ierc20" in source_lower or "is ierc20" in source_lower or "is erc20" in source_lower:
+            inheritance["erc20"] = True
+
+        if "upgradeableproxy" in source_lower or "transparentupgradeableproxy" in source_lower:
+            inheritance["proxy"] = True
+
+        if "reentrancyguard" in source_lower or "nonreentrant" in source_lower:
+            inheritance["reentrancy_guard"] = True
+            self._add_finding(
+                "info",
+                "Reentrancy Protection",
+                "Contract uses ReentrancyGuard for protection against reentrancy attacks.",
+                "inheritance"
+            )
+
+        return inheritance
+
     def _check_red_flags(self, address: str, source_code: Optional[str]) -> List[str]:
-        """Check for common scam patterns"""
+        """Check for common scam patterns and dangerous code in source code"""
         flags = []
 
         if source_code:
             source_lower = source_code.lower()
 
             # Check for blacklist
-            if "blacklist" in source_lower or "_isblacklisted" in source_lower:
-                self._add_finding(
-                    "high",
-                    "Blacklist Function Found",
-                    "Contract contains blacklist functionality. Owner can prevent specific addresses from trading.",
-                    "red_flag"
-                )
-                self.risk_score += 30
-                flags.append("blacklist")
+            if "blacklist" in source_lower or "_isblacklisted" in source_lower or "ban(" in source_lower or "blockuser" in source_lower:
+                if not any(f["type"] == "red_flag" and "blacklist" in f["message"].lower() for f in self.findings):
+                    self._add_finding(
+                        "high",
+                        "Blacklist Pattern in Source",
+                        "Source code contains blacklist implementation. Owner can prevent specific addresses from trading.",
+                        "red_flag"
+                    )
+                    flags.append("blacklist")
 
-            # Check for high transfer fees in source
-            if "transferfee" in source_lower or "sellfee" in source_lower:
+            # Check for transfer fees
+            if "transferfee" in source_lower or "sellfee" in source_lower or "buyfee" in source_lower or "taxfee" in source_lower:
                 self._add_finding(
                     "medium",
                     "Transfer Fees Detected",
-                    "Contract implements transfer fees. Verify fee percentages are reasonable.",
+                    "Contract implements transfer fees. Verify fee percentages are reasonable (<10%).",
                     "red_flag"
                 )
-                self.risk_score += 20
                 flags.append("transfer_fees")
+
+            # Check for reentrancy-unsafe external calls
+            if "call.value" in source_lower.replace(" ", "") or "call{value:" in source_lower.replace(" ", ""):
+                self._add_finding(
+                    "critical",
+                    "Unsafe External Call Pattern",
+                    "Contract uses low-level call.value or call{value:} which can be vulnerable to reentrancy attacks.",
+                    "red_flag"
+                )
+                flags.append("unsafe_call")
+
+            # Check for selfdestruct
+            if "selfdestruct(" in source_lower or "suicide(" in source_lower:
+                self._add_finding(
+                    "critical",
+                    "Self-Destruct Function Detected",
+                    "Contract contains selfdestruct which can permanently destroy the contract and all funds.",
+                    "red_flag"
+                )
+                flags.append("selfdestruct")
+
+            # Check for delegatecall
+            if "delegatecall(" in source_lower:
+                self._add_finding(
+                    "high",
+                    "Delegatecall Detected",
+                    "Contract uses delegatecall which can be dangerous if not properly secured. May allow arbitrary code execution.",
+                    "red_flag"
+                )
+                flags.append("delegatecall")
+
+            # Check for backdoor-like functions
+            backdoor_patterns = ["withdrawall", "emergencywithdraw", "rugpull", "skim(", "sweep("]
+            for pattern in backdoor_patterns:
+                if pattern in source_lower.replace(" ", ""):
+                    self._add_finding(
+                        "critical",
+                        "Potential Backdoor Function",
+                        f"Contract contains suspicious function pattern '{pattern}' which may allow owner to drain funds.",
+                        "red_flag"
+                    )
+                    flags.append("backdoor")
+                    break
+
+            # Check for ownership transfer without timelock
+            if ("transferownership(" in source_lower.replace(" ", "") and
+                "timelock" not in source_lower):
+                self._add_finding(
+                    "medium",
+                    "Ownership Transfer Without Timelock",
+                    "Contract allows ownership transfer without timelock protection. Ownership can change instantly.",
+                    "red_flag"
+                )
+                flags.append("no_timelock")
 
         return flags
 
-    def _get_token_info(self, address: str) -> Dict:
+    def _check_event_coverage(self, abi: list) -> Dict:
+        """Check if contract has proper event emissions for state changes"""
+        events = []
+        functions = []
+        coverage = {"has_events": False, "missing_events": [], "score": 0}
+
+        # Extract events and functions from ABI
+        for item in abi:
+            if item.get("type") == "event":
+                events.append(item.get("name", "").lower())
+            elif item.get("type") == "function":
+                func_name = item.get("name", "").lower()
+                state_mutability = item.get("stateMutability", "")
+                # Only check state-changing functions
+                if state_mutability in ["nonpayable", "payable", ""]:
+                    functions.append(func_name)
+
+        coverage["has_events"] = len(events) > 0
+
+        # Check for expected ERC-20 events
+        expected_erc20_events = ["transfer", "approval"]
+        for event in expected_erc20_events:
+            if event not in events and any(event in f for f in functions):
+                coverage["missing_events"].append(f"{event.title()} event")
+
+        # Check if privileged functions emit events
+        privilege_functions = ["mint", "burn", "pause", "unpause", "transferownership", "blacklist"]
+        for priv_func in privilege_functions:
+            if any(priv_func in f for f in functions):
+                # Check if there's a corresponding event
+                has_event = any(priv_func in e for e in events)
+                if not has_event:
+                    coverage["missing_events"].append(f"{priv_func.title()} event")
+
+        # Calculate coverage score
+        if len(events) == 0:
+            coverage["score"] = 0
+            self._add_finding(
+                "medium",
+                "No Events Detected",
+                "Contract does not emit any events. This makes it difficult to track state changes.",
+                "events"
+            )
+        elif len(coverage["missing_events"]) > 3:
+            coverage["score"] = 30
+            self._add_finding(
+                "low",
+                "Incomplete Event Coverage",
+                f"Contract missing events for {len(coverage['missing_events'])} important functions. Reduced transparency.",
+                "events"
+            )
+        elif len(coverage["missing_events"]) > 0:
+            coverage["score"] = 60
+        else:
+            coverage["score"] = 100
+            self._add_finding(
+                "info",
+                "Good Event Coverage",
+                "Contract has comprehensive event emissions for state changes.",
+                "events"
+            )
+
+        return coverage
+
+    def _detect_token_type(self, address: str, token_info: Dict):
+        """Detect if token is a known stablecoin or known infrastructure"""
+        address_lower = address.lower()
+
+        # Known infrastructure contracts (Router, Factory, WBNB) - audited and expected to have privileged functions
+        known_infrastructure = {
+            "0x10ed43c718714eb63d5aa57b78b54704e256024e": "PancakeSwap Router V2",
+            "0xca143ce32fe78f1f7019d7d551a6402fc5350c73": "PancakeSwap Factory V2",
+            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c": "Wrapped BNB (WBNB)",
+            "0x05ff2b0db69458a0750badebc4f9e13add608c7f": "PancakeSwap Router V1",
+        }
+
+        # Check if this is known infrastructure first
+        if address_lower in known_infrastructure:
+            self.is_known_infrastructure = True
+            infra_name = known_infrastructure[address_lower]
+            self._add_finding(
+                "info",
+                f"Known Infrastructure: {infra_name}",
+                f"This is a recognized DeFi infrastructure contract. Centralized functions are expected and audited.",
+                "token_type"
+            )
+            # Major positive factor for known audited infrastructure
+            self.positive_factors.append(30)
+            return
+
+        # Known stablecoin addresses on BSC
+        known_stablecoins = {
+            "0xe9e7cea3dedca5984780bafc599bd69add087d56": "BUSD",  # Binance USD
+            "0x55d398326f99059ff775485246999027b3197955": "USDT",  # Tether USD
+            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d": "USDC",  # USD Coin
+            "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3": "DAI",   # Dai Stablecoin
+        }
+
+        # Check by address
+        if address_lower in known_stablecoins:
+            self.is_stablecoin = True
+            stablecoin_name = known_stablecoins[address_lower]
+            self._add_finding(
+                "info",
+                f"Known Stablecoin: {stablecoin_name}",
+                f"This is a recognized stablecoin. Centralized controls (mint, burn, owner) are expected for regulatory compliance.",
+                "token_type"
+            )
+            # Reduce risk scores that were added for legitimate stablecoin features
+            self._adjust_stablecoin_risk()
+            return
+
+        # Check by symbol/name
+        if token_info:
+            symbol = token_info.get("symbol", "").upper()
+            name = token_info.get("name", "").upper()
+
+            # Stablecoin indicators
+            stablecoin_indicators = ["USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDD"]
+            for indicator in stablecoin_indicators:
+                if indicator in symbol or indicator in name:
+                    self.is_stablecoin = True
+                    self._add_finding(
+                        "info",
+                        "Likely Stablecoin",
+                        f"Token appears to be a stablecoin based on name/symbol. Centralized features may be expected.",
+                        "token_type"
+                    )
+                    self._adjust_stablecoin_risk()
+                    return
+
+    def _adjust_stablecoin_risk(self):
+        """Adjust risk severity for legitimate stablecoin features"""
+        # Check findings for stablecoin-appropriate features and downgrade severity
+        for finding in self.findings:
+            # Mint function is expected for stablecoins
+            if "mint" in finding["message"].lower() and finding["severity"] == "high":
+                finding["severity"] = "info"
+                finding["details"] = "Stablecoin: " + finding["details"] + " This is expected for centralized stablecoin issuance."
+
+            # EOA owner is common for regulated stablecoins
+            if "eoa owner" in finding["message"].lower() and finding["severity"] == "medium":
+                finding["severity"] = "low"
+                finding["details"] = "Stablecoin: " + finding["details"] + " Centralized control is standard for regulated stablecoins."
+
+    def _get_token_info(self, address: str, abi: Optional[list]) -> Dict:
         """Get basic ERC-20 token information"""
         token_info = {}
 
         try:
-            # Try standard ERC-20 functions
-            erc20_abi = [
-                {"constant": True, "inputs": [], "name": "name", "outputs": [{"name": "", "type": "string"}], "type": "function"},
-                {"constant": True, "inputs": [], "name": "symbol", "outputs": [{"name": "", "type": "string"}], "type": "function"},
-                {"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "type": "function"},
-                {"constant": True, "inputs": [], "name": "totalSupply", "outputs": [{"name": "", "type": "uint256"}], "type": "function"}
-            ]
+            # Use ABI if available, otherwise use standard ERC-20 ABI
+            if not abi:
+                abi = [
+                    {"constant": True, "inputs": [], "name": "name", "outputs": [{"name": "", "type": "string"}], "type": "function"},
+                    {"constant": True, "inputs": [], "name": "symbol", "outputs": [{"name": "", "type": "string"}], "type": "function"},
+                    {"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "type": "function"},
+                    {"constant": True, "inputs": [], "name": "totalSupply", "outputs": [{"name": "", "type": "uint256"}], "type": "function"}
+                ]
 
-            contract = self.w3.eth.contract(address=address, abi=erc20_abi)
+            contract = self.w3.eth.contract(address=address, abi=abi)
 
             try:
                 token_info["name"] = contract.functions.name().call()
@@ -316,18 +819,71 @@ class CoreSecurityAnalyzer:
         return token_info
 
     def _calculate_risk(self) -> int:
-        """Calculate final risk score (0-100)"""
-        # Risk score is already accumulated during analysis
+        """
+        Calculate final risk score (0-100) using weighted severity model
+        Formula: Base score from findings + contextual adjustments - positive factors
+        """
+        # Severity weights (maximum impact each type can have)
+        severity_weights = {
+            "critical": 40,  # Each critical finding contributes up to 40 points
+            "high": 25,      # Each high finding contributes up to 25 points
+            "medium": 15,    # Each medium finding contributes up to 15 points
+            "low": 5,        # Each low finding contributes up to 5 points
+            "info": 0        # Info findings don't add to score
+        }
+
+        # Group findings by severity
+        findings_by_severity = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
+        for finding in self.findings:
+            severity = finding.get("severity", "info")
+            findings_by_severity[severity].append(finding)
+
+        # Calculate base score using weighted approach
+        base_score = 0
+
+        # Critical findings have the highest impact
+        if findings_by_severity["critical"]:
+            # First critical finding = full weight, subsequent ones have diminishing returns
+            base_score += severity_weights["critical"]
+            base_score += min(len(findings_by_severity["critical"]) - 1, 3) * 10
+
+        # High severity findings
+        if findings_by_severity["high"]:
+            base_score += severity_weights["high"]
+            base_score += min(len(findings_by_severity["high"]) - 1, 2) * 8
+
+        # Medium severity findings
+        if findings_by_severity["medium"]:
+            base_score += severity_weights["medium"]
+            base_score += min(len(findings_by_severity["medium"]) - 1, 2) * 5
+
+        # Low severity findings
+        if findings_by_severity["low"]:
+            base_score += min(len(findings_by_severity["low"]), 3) * 3
+
+        # Apply positive factors (risk reduction)
+        risk_reduction = sum(self.positive_factors)
+
+        # Calculate final score
+        final_score = max(0, base_score - risk_reduction)
+
         # Cap at 100
-        return min(self.risk_score, 100)
+        return min(final_score, 100)
 
     def _get_risk_level(self, score: int) -> str:
-        """Convert risk score to risk level"""
-        if score >= 75:
+        """
+        Convert risk score to risk level based on enhanced severity model
+
+        CRITICAL (80+): Honeypot, unprotected selfdestruct/delegatecall, unlimited mint
+        HIGH (60-79): Owner can mint unlimited, pause/blacklist, proxy with EOA admin, old compiler
+        MEDIUM (30-59): Transfer fees/taxes, missing events, centralized EOA control
+        LOW (10-29): Tokenomics quirks, optimizer settings, verified contract
+        """
+        if score >= 80:
             return "CRITICAL"
-        elif score >= 50:
+        elif score >= 60:
             return "HIGH"
-        elif score >= 25:
+        elif score >= 30:
             return "MEDIUM"
         elif score >= 10:
             return "LOW"

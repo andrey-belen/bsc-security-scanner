@@ -1,346 +1,407 @@
 # 🛡️ BSC Security Scanner
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org)
 [![BSC](https://img.shields.io/badge/BSC-Binance%20Smart%20Chain-yellow.svg)](https://bscscan.com)
-[![Security](https://img.shields.io/badge/Security-Analysis-red.svg)](https://github.com/andrei/bsc-security-scanner)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Maintained](https://img.shields.io/badge/Maintained-Yes-brightgreen.svg)](https://github.com/andrei/bsc-security-scanner)
 
-**Professional smart contract security analysis tool for BEP-20 tokens on Binance Smart Chain**
+**Professional smart contract security analysis tool for BEP-20 tokens on Binance Smart Chain with modern React dashboard**
 
 > ⚠️ **Educational Use Only**: This tool is designed for security research and educational purposes. Always conduct your own research before making investment decisions.
 
-## 🚀 Features
+## 🚀 Quick Start
 
-### Core Security Analysis
-- **🔍 Contract Verification**: Checks if source code is verified on BscScan
-- **👑 Ownership Analysis**: Detects ownership patterns, renouncement status, and centralization risks
-- **🍯 Honeypot Detection**: Identifies selling restrictions, high taxes, and trading limitations
-- **⚠️ Function Analysis**: Scans for dangerous functions (mint, pause, blacklist, etc.)
-- **💰 Liquidity Analysis**: Checks liquidity lock status and concentration
-- **🐋 Holder Distribution**: Analyzes whale concentration and distribution patterns
+### Full Stack Dashboard (Recommended)
+```bash
+# Start both backend and frontend
+./start-fullstack.sh
 
-### Advanced Detection Capabilities
-- **Hidden mint functions** that can inflate supply
-- **Ownership renouncement status** and multisig patterns
-- **Honeypot indicators** preventing profitable selling
-- **High tax/fee functions** that drain user funds
-- **Pausable token risks** allowing owner to halt trading
-- **Blacklist functions** that can freeze user funds
-- **Proxy patterns** and upgrade risks
+# Access the dashboard
+open http://localhost:3000
+```
 
-### Professional Output
-- **Rich Terminal UI** with colored output and progress bars
-- **Risk Scoring System** (Low/Medium/High/Critical)
-- **JSON Reports** for automated analysis
-- **Markdown Reports** for documentation
-- **Batch Scanning** for multiple contracts
-- **Rate Limiting** to avoid RPC bans
+### CLI Scanner Only
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-## 📸 Example Output
+# Run scan
+python scanner.py --address 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56
+```
+
+## 📦 What's Included
+
+- **🎨 React Dashboard**: Modern web UI with real-time analysis
+- **🔌 REST API**: Node.js/Express backend with async processing
+- **🐍 Python CLI**: Powerful command-line scanner
+- **💾 SQLite Database**: Automatic result caching
+- **📊 Rich Reports**: JSON, Markdown, and visual outputs
+
+## 🌟 Key Features
+
+### Advanced Security Analysis
+- **✅ Context-Aware Detection**: Distinguishes between scams and legitimate DeFi (stablecoins, routers, etc.)
+- **🔬 Source Code Analysis**: Deep inspection of verified contracts using Etherscan API
+- **🎯 Weighted Risk Scoring**: Smart severity model with diminishing returns
+- **🏗️ Infrastructure Whitelisting**: Known contracts (PancakeSwap, WBNB, BUSD) properly recognized
+- **🔍 Compiler Version Checks**: Detects vulnerable Solidity versions with SafeMath detection
+- **🛡️ Comprehensive Pattern Detection**: Finds honeypots, rug pulls, and dangerous functions
+
+### What We Analyze
+
+#### From Etherscan API (Verified Contracts)
+- Compiler version and optimization settings
+- Contract inheritance patterns (Ownable, Pausable, AccessControl)
+- Source code red flags (blacklist, selfdestruct, delegatecall, backdoors)
+- ABI-based privilege function detection
+- Event coverage analysis
+
+#### From On-Chain Data
+- Owner type detection (EOA vs Multisig)
+- Ownership renouncement status
+- Token information (name, symbol, decimals, supply)
+- Dangerous function selectors from bytecode
+
+#### Advanced Detection
+- **Honeypot Patterns**: Cannot sell after purchase
+- **Backdoor Functions**: withdrawAll, emergencyWithdraw, skim
+- **Reentrancy Risks**: Unsafe call.value patterns
+- **Proxy Upgrades**: Detects upgradeable contracts
+- **Access Control**: Role-based vs owner-based permissions
+
+### Intelligent Risk Scoring
+
+Our weighted severity model provides accurate risk assessment:
 
 ```
-🔍 BSC Security Scanner
-==================================================
-📍 Address: 0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763
-🏷️  Token: SafeMoon
-🔗 Chain: Binance Smart Chain (BSC)
+Risk Score = Base Score - Positive Factors
 
-🔐 Security Analysis:
-✅ Contract verified on BscScan
-⚠️  Single EOA owner detected
-🔴 High sell tax detected (12%)
-⚠️  Different buy/sell taxes detected
-🔴 3 dangerous function(s) detected
-🔴 Owner can pause transfers
-⚠️  Blacklist functionality present
+Where:
+- Critical findings: 40 pts (+ 10 per additional)
+- High findings: 25 pts (+ 8 per additional)
+- Medium findings: 15 pts (+ 5 per additional)
+- Low findings: 5 pts (capped at 3)
 
-🎯 Risk Score: HIGH (75/100)
-📊 Summary: Found 10 security findings
+Positive Factors (Risk Reduction):
+- Known Infrastructure: -30 pts
+- Ownership Renounced: -15 pts
+- Multisig Owner: -10 pts
+- Verified Contract: -5 pts
+- Optimizer Enabled: -3 pts
 ```
+
+| Risk Level | Score | Example |
+|------------|-------|---------|
+| **VERY LOW** | 0-9 | WBNB (0/100) |
+| **LOW** | 10-29 | BUSD (13/100) |
+| **MEDIUM** | 30-59 | PancakeSwap Router (30/100) |
+| **HIGH** | 60-79 | Suspicious tokens with multiple dangerous functions |
+| **CRITICAL** | 80-100 | Honeypots, unprotected selfdestruct, unlimited mint |
 
 ## 🛠️ Installation
 
 ### Prerequisites
-- Python 3.8 or higher
-- Git
+- Python 3.8+
+- Node.js 18+
+- npm or yarn
 
-### Quick Setup
+### Setup
+
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/andrei/bsc-security-scanner.git
 cd bsc-security-scanner
 
-# Install dependencies
+# Install Python dependencies
 pip install -r requirements.txt
 
-# Run your first scan
-python scanner.py --address 0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763
+# Install Node.js dependencies
+npm install
+
+# Setup frontend
+cd frontend
+npm install
+cd ..
+
+# Configure environment
+cp .env.example .env
+# Edit .env and add your ETHERSCAN_API_KEY from https://etherscan.io/myapikey
 ```
 
-### Virtual Environment (Recommended)
-```bash
-# Create virtual environment
-python -m venv bsc-scanner-env
+### Get API Key (Required)
 
-# Activate virtual environment
-# On Windows:
-bsc-scanner-env\\Scripts\\activate
-# On macOS/Linux:
-source bsc-scanner-env/bin/activate
+The scanner uses Etherscan's multi-chain API to analyze BSC contracts:
 
-# Install dependencies
-pip install -r requirements.txt
-```
+1. Visit https://etherscan.io/myapikey
+2. Create free account
+3. Generate API key
+4. Add to `.env` file:
+   ```
+   ETHERSCAN_API_KEY=your_key_here
+   ```
 
 ## 🎯 Usage
 
-### Single Contract Scan
-```bash
-# Basic scan
-python scanner.py --address 0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763
+### React Dashboard
 
-# Quick scan (faster, fewer checks)
-python scanner.py --address 0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763 --quick
+```bash
+# Start full stack (recommended)
+./start-fullstack.sh
+
+# Or start individually
+./start-backend.sh    # Port 3001
+./start-frontend.sh   # Port 3000
+
+# Access dashboard
+open http://localhost:3000
+```
+
+**Dashboard Features:**
+- 🔍 Real-time contract analysis
+- 📊 Visual risk indicators
+- 💾 Automatic caching with clear cache button
+- 📋 Detailed findings breakdown
+- 🎨 Modern, responsive UI
+
+### Python CLI
+
+```bash
+# Single contract scan
+python scanner.py --address 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56
+
+# Quick scan (faster, basic checks)
+python scanner.py --address 0x... --quick
 
 # Generate JSON report
-python scanner.py --address 0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763 --output report.json
+python scanner.py --address 0x... --output report.json
 
-# Generate Markdown report
-python scanner.py --address 0x8076c74c5e3f5852e2f86380b9ca2a2c38acf763 --format markdown
-```
-
-### Batch Scanning
-```bash
-# Scan multiple contracts from file
+# Batch scanning
 python scanner.py --batch contracts/test_addresses.txt
-
-# Batch scan with custom output format
-python scanner.py --batch contracts/test_addresses.txt --format markdown
 ```
 
-### Advanced Options
+### API Endpoints
+
 ```bash
-# Verbose output for debugging
-python scanner.py --address 0x... --verbose
+# Health check
+curl http://localhost:3001/health
 
-# Custom output file
-python scanner.py --address 0x... --output /path/to/custom_report.json
+# Async analysis
+curl -X POST http://localhost:3001/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56"}'
 
-# Help and all options
-python scanner.py --help
+# Check status
+curl http://localhost:3001/api/analyze/{id}/status
+
+# Clear cache
+curl -X POST http://localhost:3001/api/cache/clear
 ```
 
-## 📋 Command Line Options
+## 📋 Example Analysis
 
-| Option | Description |
-|--------|-------------|
-| `--address`, `-a` | Contract address to scan |
-| `--batch`, `-b` | File containing list of addresses |
-| `--output`, `-o` | Output file path for report |
-| `--format`, `-f` | Report format (json/markdown) |
-| `--quick`, `-q` | Perform quick scan only |
-| `--verbose`, `-v` | Enable verbose output |
+### BUSD (Legitimate Stablecoin)
+```json
+{
+  "risk_score": 13,
+  "risk_level": "LOW",
+  "token_name": "BUSD Token",
+  "is_stablecoin": true,
+  "findings": [
+    {
+      "severity": "info",
+      "message": "Known Stablecoin: BUSD",
+      "details": "Centralized controls expected for regulatory compliance"
+    },
+    {
+      "severity": "info",
+      "message": "Mint Function Detected",
+      "details": "Expected for centralized stablecoin issuance"
+    },
+    {
+      "severity": "low",
+      "message": "Old Compiler with SafeMath",
+      "details": "Risk mitigated by SafeMath library"
+    }
+  ]
+}
+```
+
+### PancakeSwap Router (Known Infrastructure)
+```json
+{
+  "risk_score": 30,
+  "risk_level": "MEDIUM",
+  "is_known_infrastructure": true,
+  "positive_factors": 38,
+  "findings": [
+    {
+      "severity": "info",
+      "message": "Known Infrastructure: PancakeSwap Router V2",
+      "details": "Recognized DeFi infrastructure. Centralized functions expected and audited."
+    }
+  ]
+}
+```
+
+### Honeypot Token (Scam)
+```json
+{
+  "risk_score": 95,
+  "risk_level": "CRITICAL",
+  "findings": [
+    {
+      "severity": "critical",
+      "message": "Self-Destruct Function Detected",
+      "details": "Contract can be permanently destroyed"
+    },
+    {
+      "severity": "critical",
+      "message": "Potential Backdoor Function",
+      "details": "Function allows owner to drain funds"
+    }
+  ]
+}
+```
 
 ## 🏗️ Project Structure
 
 ```
 bsc-security-scanner/
-├── README.md                 # This file
-├── scanner.py               # Main scanner application
-├── config.py               # BSC configuration and constants
-├── requirements.txt        # Python dependencies
-├── analyzers/             # Analysis modules
+├── README.md                       # This file
+├── scanner.py                      # Python CLI entry point
+├── config.py                       # BSC configuration & known contracts
+├── server.js                       # Express API server
+├── package.json                    # Node.js dependencies
+├── requirements.txt                # Python dependencies
+├── .env.example                    # Environment template
+│
+├── analyzers/                      # Core analysis engine
 │   ├── __init__.py
-│   ├── ownership.py       # Ownership analysis
-│   ├── honeypot.py       # Honeypot detection
-│   └── functions.py      # Function analysis
-├── reports/              # Generated reports
-│   └── sample_scan.json # Example output
-└── contracts/           # Test contract addresses
-    └── test_addresses.txt
+│   └── core_analyzer.py           # Main security analyzer
+│
+├── frontend/                       # React dashboard
+│   ├── src/
+│   │   ├── App.tsx               # Main React component
+│   │   ├── services/api.ts       # API service
+│   │   └── App.css              # Styles
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── database/                       # SQLite caching
+│   └── db.js                      # Database operations
+│
+├── cache/                         # Memory caching
+│   └── cache.js                  # NodeCache wrapper
+│
+├── utils/                         # Utilities
+│   ├── cache.py                  # Python cache
+│   └── error_handler.py         # Error handling
+│
+├── ai_docs/                       # Feature documentation
+│   └── features/                 # Implementation specs
+│
+└── start-*.sh                    # Startup scripts
 ```
 
-## 🔍 Security Checks
+## 🔬 Technical Details
 
-### Ownership Analysis
-- **Owner Detection**: Identifies contract owner and type (EOA/multisig/contract)
-- **Renouncement Verification**: Checks if ownership has been properly renounced
-- **Centralization Risk**: Assesses concentration of control
+### Etherscan V2 Multi-Chain API Integration
 
-### Honeypot Detection
-- **Sell Restrictions**: Identifies mechanisms that prevent selling
-- **Tax Analysis**: Detects asymmetric buy/sell taxes
-- **Transfer Limits**: Checks for restrictive transaction limits
-- **Bytecode Analysis**: Scans for honeypot patterns in contract code
+The scanner uses Etherscan's V2 API which supports BSC:
 
-### Function Analysis
-- **Dangerous Functions**: Detects mint, pause, blacklist, and other risky functions
-- **Access Control**: Analyzes function visibility and modifiers
-- **Hidden Functions**: Identifies obfuscated or non-standard functions
-
-### Liquidity & Distribution
-- **Liquidity Lock**: Verifies if liquidity is locked
-- **Holder Analysis**: Checks for whale concentration
-- **Distribution Patterns**: Identifies unusual token distributions
-
-## 🎯 Risk Scoring System
-
-The scanner uses a weighted scoring system to assess overall contract risk:
-
-| Risk Level | Score Range | Description |
-|------------|-------------|-------------|
-| **VERY LOW** | 0-9 | Minimal risk, standard ERC-20 |
-| **LOW** | 10-29 | Some minor concerns |
-| **MEDIUM** | 30-59 | Moderate risk, proceed with caution |
-| **HIGH** | 60-79 | High risk, significant concerns |
-| **CRITICAL** | 80-100 | Extreme risk, likely scam/honeypot |
-
-### Risk Factors and Weights
-- Unverified contract: 25 points
-- No ownership renounced: 15 points
-- Dangerous functions: 20 points
-- High sell tax (>10%): 25 points
-- Honeypot indicators: 30 points
-- No liquidity lock: 15 points
-- Whale concentration: 10 points
-
-## 🌐 Why BSC Security Matters
-
-Binance Smart Chain has become a hotbed for both legitimate projects and malicious actors. Common BSC-specific risks include:
-
-### Unique BSC Vulnerabilities
-- **Cross-chain bridge risks** not present on Ethereum
-- **Lower gas fees** enabling more frequent rug pulls
-- **Fast block times** allowing rapid token manipulation
-- **BSC-specific DEX mechanics** (PancakeSwap patterns)
-- **Different token standards** and implementations
-
-### Common Attack Vectors
-1. **Honeypot Tokens**: Allow buying but prevent selling
-2. **Rug Pulls**: Developers drain liquidity after launch
-3. **High Tax Scams**: Excessive taxes that drain user funds
-4. **Ownership Abuse**: Centralized control for malicious purposes
-5. **Fake Token Clones**: Impersonating legitimate projects
-
-## 📊 Real-World Examples
-
-### SafeMoon Analysis
-```json
-{
-  "risk_level": "HIGH",
-  "risk_score": 75,
-  "key_findings": [
-    "High sell tax (12%)",
-    "Centralized ownership",
-    "Blacklist functionality",
-    "Pause mechanism"
-  ]
+```python
+# API call example
+params = {
+    "chainid": 56,  # BSC
+    "module": "contract",
+    "action": "getsourcecode",
+    "address": address,
+    "apikey": ETHERSCAN_API_KEY
 }
 ```
 
-### Typical Honeypot Pattern
-```json
-{
-  "risk_level": "CRITICAL", 
-  "risk_score": 95,
-  "key_findings": [
-    "Cannot sell after purchase",
-    "Hidden mint functions",
-    "Transfer restrictions",
-    "Unverified contract"
-  ]
-}
-```
+### Analyzer Architecture
 
-## 🔬 Technical Implementation
+1. **Contract Verification** (Etherscan API)
+   - Source code retrieval
+   - Compiler metadata extraction
+   - ABI parsing
 
-### BSC Integration
-- **RPC Endpoints**: Multiple BSC public nodes for redundancy
-- **Web3.py**: Direct blockchain interaction for contract analysis
-- **BscScan API**: Contract verification and metadata
-- **Bytecode Analysis**: Direct smart contract code examination
+2. **Compiler Analysis**
+   - Version vulnerability checking
+   - SafeMath detection
+   - Optimization verification
 
-### Analysis Techniques
-- **Static Analysis**: Bytecode pattern recognition
-- **Function Signature Detection**: 4-byte selector analysis
-- **ABI Parsing**: Interface analysis where available
-- **Transaction Simulation**: Safe testing of contract behavior
+3. **Source Code Inspection**
+   - Pattern matching for dangerous code
+   - Inheritance analysis
+   - Function signature detection
 
-## 🚧 Future Improvements
+4. **On-Chain Verification**
+   - Owner() calls via Web3
+   - EOA vs Contract detection
+   - Token info retrieval
 
-### Planned Features
-- [ ] **Web Interface**: Flask-based web UI for easier access
-- [ ] **Real-time Monitoring**: Track contracts over time
-- [ ] **Machine Learning**: ML-based risk assessment
-- [ ] **API Integration**: RESTful API for automated scanning
-- [ ] **Mobile App**: React Native mobile scanner
-- [ ] **Browser Extension**: One-click scanning from BSC explorers
+5. **Risk Calculation**
+   - Weighted severity scoring
+   - Positive factor deduction
+   - Context-aware adjustments
 
-### Enhanced Analysis
-- [ ] **Liquidity Pool Analysis**: Deep DEX integration
-- [ ] **Token Holder Behavior**: Transaction pattern analysis
-- [ ] **Cross-contract Dependencies**: Related contract scanning
-- [ ] **Historical Analysis**: Time-series risk assessment
-- [ ] **Social Media Integration**: Community sentiment analysis
+## 📊 Recognized Contracts
 
-### Performance Improvements
-- [ ] **Caching Layer**: Redis for faster repeated scans
-- [ ] **Parallel Processing**: Multi-threaded analysis
-- [ ] **Database Integration**: PostgreSQL for scan history
-- [ ] **Rate Limiting**: Intelligent request management
+### Known Infrastructure (Auto-whitelisted)
+- **PancakeSwap Router V2**: `0x10ed43c718714eb63d5aa57b78b54704e256024e`
+- **PancakeSwap Factory V2**: `0xca143ce32fe78f1f7019d7d551a6402fc5350c73`
+- **Wrapped BNB (WBNB)**: `0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c`
+
+### Known Stablecoins (Context-aware analysis)
+- **BUSD**: `0xe9e7cea3dedca5984780bafc599bd69add087d56`
+- **USDT**: `0x55d398326f99059ff775485246999027b3197955`
+- **USDC**: `0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d`
+- **DAI**: `0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3`
 
 ## 🤝 Contributing
 
-We welcome contributions from the security community! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Development Setup
 ```bash
-# Clone and setup development environment
-git clone https://github.com/andrei/bsc-security-scanner.git
-cd bsc-security-scanner
+# Backend development (with auto-reload)
+npm run dev
 
-# Install development dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+# Frontend development
+cd frontend && npm run dev
 
-# Run tests
-pytest tests/
+# Run Python tests
+pytest tests/ -v
 
-# Code formatting
+# Format Python code
 black scanner.py analyzers/
-flake8 scanner.py analyzers/
 ```
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## ⚠️ Disclaimer
 
-**IMPORTANT**: This tool is for educational and research purposes only. 
+**IMPORTANT**: This tool is for educational and research purposes only.
 
-- **Not Financial Advice**: Results should not be used as the sole basis for investment decisions
-- **No Guarantees**: Security analysis may not catch all vulnerabilities
-- **Due Diligence**: Always conduct your own research
-- **Risk Warning**: Cryptocurrency investments carry inherent risks
-- **Tool Limitations**: Analysis is based on publicly available information
+- ❌ **Not Financial Advice**: Don't use as sole basis for investments
+- ⚠️ **No Guarantees**: May not catch all vulnerabilities
+- 🔍 **Do Your Research**: Always verify findings independently
+- 📊 **Tool Limitations**: Based on publicly available data only
 
-The developers are not responsible for any financial losses incurred from using this tool.
+The developers are not responsible for any financial losses.
 
-## 📞 Support & Contact
+## 📜 License
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/andrei/bsc-security-scanner/issues)
-- **Security Reports**: Please responsibly disclose security issues
-- **Feature Requests**: We welcome suggestions for improvements
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🏆 Acknowledgments
 
-- **Binance Smart Chain**: For providing robust infrastructure
-- **OpenZeppelin**: For security best practices and standards
-- **Web3.py**: For excellent blockchain integration tools
-- **Rich**: For beautiful terminal output
-- **BSC Community**: For continuous feedback and testing
+- **Binance Smart Chain** for infrastructure
+- **Etherscan** for multi-chain API support
+- **OpenZeppelin** for security standards
+- **Web3.py** for blockchain integration
+- **React** and **Vite** for modern frontend
 
 ---
 

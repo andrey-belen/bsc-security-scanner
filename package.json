@@ -1,6 +1,6 @@
 {
   "name": "bsc-security-scanner-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Express backend for BSC Security Scanner web application",
   "main": "server.js",
   "scripts": {

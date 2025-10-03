@@ -1,5 +1,6 @@
 """
 BSC Configuration - RPC endpoints and contract addresses
+Note: BSCScan now uses Etherscan API infrastructure, so use ETHERSCAN_API_KEY from etherscan.io
 """
 
 import os
@@ -8,7 +9,7 @@ from typing import List, Dict
 # BSC Public RPC Endpoints (no API key required)
 BSC_RPC_ENDPOINTS = [
     "https://bsc-dataseed.binance.org/",
-    "https://bsc-dataseed1.binance.org/", 
+    "https://bsc-dataseed1.binance.org/",
     "https://bsc-dataseed2.binance.org/",
     "https://bsc-dataseed3.binance.org/",
     "https://bsc-dataseed4.binance.org/",
@@ -23,6 +24,8 @@ BSC_RPC_ENDPOINTS = [
 ]
 
 # BSC Network Configuration
+# Note: Etherscan API is now multi-chain and supports BSC
+# Use api.etherscan.io with chain parameter for BSC
 BSC_CONFIG = {
     "chain_id": 56,
     "name": "Binance Smart Chain",
@@ -30,7 +33,8 @@ BSC_CONFIG = {
     "decimals": 18,
     "rpc_endpoints": BSC_RPC_ENDPOINTS,
     "explorer": "https://bscscan.com",
-    "explorer_api": "https://api.bscscan.com/api"
+    "explorer_api": "https://api.etherscan.io/v2/api",  # Etherscan V2 multi-chain API
+    "chain_param": "bsc"  # Chain identifier for multi-chain API
 }
 
 # Rate limiting settings
@@ -149,11 +153,17 @@ def get_rpc_endpoint() -> str:
     return random.choice(BSC_RPC_ENDPOINTS)
 
 def get_bscscan_api_key() -> str:
-    """Get BscScan API key from environment"""
-    return os.getenv("BSCSCAN_API_KEY", "")
+    """
+    Get Etherscan API key from environment
+    Note: Etherscan API is now multi-chain and supports BSC via chain parameter
+    """
+    return os.getenv("ETHERSCAN_API_KEY", "")
 
 def is_valid_bsc_address(address: str) -> bool:
-    """Validate BSC address format"""
+    """
+    Validate BSC address format
+    Note: BSC uses same address format as Ethereum (0x + 40 hex chars)
+    """
     if not address.startswith("0x"):
         return False
     if len(address) != 42:
