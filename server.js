@@ -12,6 +12,10 @@ const path = require('path');
 const fs = require('fs').promises;
 require('dotenv').config();
 
+// Database and cache modules
+const { initDatabase, storeScanResult, getCachedScanResult, getStats: getDbStats } = require('./database/db');
+const { getCached, setCached, getStats: getCacheStats } = require('./cache/cache');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -35,7 +39,7 @@ app.use(morgan('combined'));
 // Rate limiting
 const analyzeRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 10,
   message: {
     error: 'Too many analysis requests from this IP, please try again later.'
   },
@@ -60,99 +64,19 @@ const validateContractAddress = [
     .withMessage('quickScan must be a boolean'),
 ];
 
-// Helper function to validate BSC address
-const isValidBSCAddress = (address) => {
-  return BSC_ADDRESS_REGEX.test(address);
-};
-
-// Helper function to run Python scanner
-const runPythonScanner = (address, quickScan = false) => {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, 'scanner.py');
-    const args = ['--address', address];
-    
-    if (quickScan) {
-      args.push('--quick');
-    }
-
-    console.log(`Starting analysis for ${address} (quick: ${quickScan})`);
-
-    const pythonProcess = spawn('python3', [scriptPath, ...args], {
-      cwd: __dirname,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    pythonProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-      if (code === 0) {
-        try {
-          // The Python script outputs JSON to stdout after all the rich console output
-          // We need to extract the JSON from the output
-          const lines = stdout.split('\n');
-          let jsonOutput = '';
-          let foundJson = false;
-          
-          // Look for JSON output (it should be the last substantial output)
-          for (let i = lines.length - 1; i >= 0; i--) {
-            const line = lines[i].trim();
-            if (line.startsWith('{')) {
-              jsonOutput = line;
-              foundJson = true;
-              break;
-            }
-          }
-
-          if (!foundJson) {
-            // If no JSON found in stdout, create a result from the scan
-            // Since the Python script doesn't output JSON to stdout by default,
-            // we'll need to modify our approach
-            reject(new Error('No JSON output found from Python scanner'));
-            return;
-          }
-
-          const result = JSON.parse(jsonOutput);
-          resolve(result);
-        } catch (error) {
-          console.error('Failed to parse JSON output:', error);
-          console.error('Stdout:', stdout);
-          console.error('Stderr:', stderr);
-          reject(new Error('Failed to parse scanner output'));
-        }
-      } else {
-        console.error(`Python script exited with code ${code}`);
-        console.error('Stderr:', stderr);
-        reject(new Error(`Scanner failed with exit code ${code}: ${stderr}`));
-      }
-    });
-
-    pythonProcess.on('error', (error) => {
-      console.error('Failed to start Python process:', error);
-      reject(new Error(`Failed to start scanner: ${error.message}`));
-    });
-  });
-};
-
-// Modified helper function to run Python scanner and return JSON
-const runPythonScannerWithJSON = async (address, quickScan = false) => {
+/**
+ * Run Python scanner and return results
+ */
+async function runPythonScannerWithJSON(address, quickScan = false) {
   const scriptPath = path.join(__dirname, 'scanner.py');
   const tempOutputFile = path.join(__dirname, 'temp_reports', `temp_${Date.now()}.json`);
-  
+
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(tempOutputFile), { recursive: true });
 
   return new Promise((resolve, reject) => {
     const args = ['--address', address, '--output', tempOutputFile];
-    
+
     if (quickScan) {
       args.push('--quick');
     }
@@ -176,10 +100,10 @@ const runPythonScannerWithJSON = async (address, quickScan = false) => {
           // Read the generated JSON file
           const reportData = await fs.readFile(tempOutputFile, 'utf8');
           const result = JSON.parse(reportData);
-          
+
           // Clean up temp file
           await fs.unlink(tempOutputFile).catch(() => {});
-          
+
           resolve(result);
         } else {
           console.error(`Python script exited with code ${code}`);
@@ -197,20 +121,80 @@ const runPythonScannerWithJSON = async (address, quickScan = false) => {
       reject(new Error(`Failed to start scanner: ${error.message}`));
     });
   });
-};
+}
+
+/**
+ * Get cached result with 3-layer check: Memory → Database → Analysis
+ */
+async function getCachedOrAnalyze(address, quickScan = false) {
+  // Layer 1: Check in-memory cache (fastest)
+  const memCached = getCached(address);
+  if (memCached) {
+    return memCached;
+  }
+
+  // Layer 2: Check database cache (24-hour TTL)
+  const dbCached = await getCachedScanResult(address, 24);
+  if (dbCached) {
+    // Populate memory cache for future requests
+    setCached(address, dbCached);
+    return {
+      ...dbCached,
+      cache_source: 'database'
+    };
+  }
+
+  // Layer 3: No cache, run analysis
+  console.log(`No cache found for ${address}, running fresh analysis`);
+  const results = await runPythonScannerWithJSON(address, quickScan);
+
+  // Store in database for future use
+  try {
+    const dbId = await storeScanResult(address, results);
+    results.db_id = dbId;
+  } catch (error) {
+    console.error('Failed to store results in database:', error.message);
+    // Continue anyway, analysis succeeded
+  }
+
+  // Store in memory cache
+  setCached(address, results);
+
+  return {
+    ...results,
+    cached: false,
+    cache_source: 'fresh'
+  };
+}
 
 // Routes
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    activeAnalyses: activeAnalyses.size
-  });
+/**
+ * Health check endpoint
+ */
+app.get('/health', async (req, res) => {
+  try {
+    const dbStats = await getDbStats();
+    const cacheStats = getCacheStats();
+
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      activeAnalyses: activeAnalyses.size,
+      database: dbStats,
+      cache: cacheStats
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
 });
 
-// Get API info
+/**
+ * Get API info
+ */
 app.get('/api/info', (req, res) => {
   res.json({
     name: 'BSC Security Scanner API',
@@ -218,18 +202,59 @@ app.get('/api/info', (req, res) => {
     description: 'REST API for analyzing BSC smart contract security',
     endpoints: {
       analyze: 'POST /api/analyze',
-      status: 'GET /api/analyze/:analysisId/status'
+      analyzeSync: 'POST /api/analyze-sync',
+      status: 'GET /api/analyze/:analysisId/status',
+      health: 'GET /health'
     },
     rateLimit: {
       windowMs: 15 * 60 * 1000,
-      maxRequests: 10
+      maxRequests: parseInt(process.env.RATE_LIMIT_MAX) || 10
+    },
+    caching: {
+      memoryTTL: '5 minutes',
+      databaseTTL: '24 hours'
     }
   });
 });
 
-// Main analysis endpoint
+/**
+ * Synchronous analysis endpoint (uses cache)
+ */
+app.post('/api/analyze-sync', analyzeRateLimit, validateContractAddress, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: errors.array()
+    });
+  }
+
+  const { address, quickScan = false } = req.body;
+
+  try {
+    console.log(`Synchronous analysis request for ${address}`);
+    const result = await getCachedOrAnalyze(address, quickScan);
+
+    res.json({
+      status: 'completed',
+      result,
+      address,
+      quickScan
+    });
+  } catch (error) {
+    console.error(`Synchronous analysis failed for ${address}:`, error);
+    res.status(500).json({
+      error: 'Analysis failed',
+      message: error.message,
+      address
+    });
+  }
+});
+
+/**
+ * Asynchronous analysis endpoint
+ */
 app.post('/api/analyze', analyzeRateLimit, validateContractAddress, async (req, res) => {
-  // Check validation results
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -266,9 +291,9 @@ app.post('/api/analyze', analyzeRateLimit, validateContractAddress, async (req, 
   // Start analysis asynchronously
   (async () => {
     try {
-      console.log(`Starting analysis ${analysisId} for ${address}`);
-      const result = await runPythonScannerWithJSON(address, quickScan);
-      
+      console.log(`Starting async analysis ${analysisId} for ${address}`);
+      const result = await getCachedOrAnalyze(address, quickScan);
+
       activeAnalyses.set(analysisId, {
         ...activeAnalyses.get(analysisId),
         status: 'completed',
@@ -293,12 +318,14 @@ app.post('/api/analyze', analyzeRateLimit, validateContractAddress, async (req, 
     message: 'Analysis started',
     analysisId,
     status: 'running',
-    estimatedTime: quickScan ? '30-60 seconds' : '2-3 minutes',
+    estimatedTime: quickScan ? '30-60 seconds' : '60-120 seconds',
     statusUrl: `/api/analyze/${analysisId}/status`
   });
 });
 
-// Get analysis status
+/**
+ * Get analysis status
+ */
 app.get('/api/analyze/:analysisId/status', (req, res) => {
   const { analysisId } = req.params;
   const analysis = activeAnalyses.get(analysisId);
@@ -346,38 +373,6 @@ app.get('/api/analyze/:analysisId/status', (req, res) => {
   }
 });
 
-// Synchronous analysis endpoint (for simple cases)
-app.post('/api/analyze-sync', analyzeRateLimit, validateContractAddress, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      error: 'Validation failed',
-      details: errors.array()
-    });
-  }
-
-  const { address, quickScan = false } = req.body;
-
-  try {
-    console.log(`Starting synchronous analysis for ${address}`);
-    const result = await runPythonScannerWithJSON(address, quickScan);
-    
-    res.json({
-      status: 'completed',
-      result,
-      address,
-      quickScan
-    });
-  } catch (error) {
-    console.error(`Synchronous analysis failed for ${address}:`, error);
-    res.status(500).json({
-      error: 'Analysis failed',
-      message: error.message,
-      address
-    });
-  }
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -407,12 +402,40 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000); // Run every 10 minutes
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 BSC Security Scanner API running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`📖 API info: http://localhost:${PORT}/api/info`);
-  console.log(`🔍 Analysis endpoint: POST http://localhost:${PORT}/api/analyze`);
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Initialize database
+    await initDatabase();
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 BSC Security Scanner API running on port ${PORT}`);
+      console.log(`📊 Health check: http://localhost:${PORT}/health`);
+      console.log(`📖 API info: http://localhost:${PORT}/api/info`);
+      console.log(`🔍 Analysis endpoint: POST http://localhost:${PORT}/api/analyze-sync`);
+      console.log(`⚡ Async analysis: POST http://localhost:${PORT}/api/analyze`);
+      console.log(`💾 Database: SQLite (./database/bsc_scanner.db)`);
+      console.log(`🗄️  Cache: In-memory (5min TTL)`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
 });
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
+// Start the server
+startServer();
 
 module.exports = app;

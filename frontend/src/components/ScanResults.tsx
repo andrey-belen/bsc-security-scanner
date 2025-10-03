@@ -1,14 +1,19 @@
-import React from 'react';
-import { 
-  Shield, 
-  AlertTriangle, 
-  CheckCircle, 
-  XCircle, 
-  Info, 
+import React, { useState } from 'react';
+import {
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Info,
   Download,
   ExternalLink,
   Clock,
-  Zap
+  Zap,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Tag
 } from 'lucide-react';
 import { ScanResult, ScanFinding } from '../types/api';
 import { ApiService } from '../services/api';
@@ -19,77 +24,117 @@ interface ScanResultsProps {
 }
 
 const ScanResults: React.FC<ScanResultsProps> = ({ result, onNewScan }) => {
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
+
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(result.address);
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const toggleFinding = (index: number) => {
+    const newExpanded = new Set(expandedFindings);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedFindings(newExpanded);
+  };
+
   const getRiskLevelIcon = (riskLevel: string) => {
     switch (riskLevel) {
       case 'CRITICAL':
-        return <XCircle className="h-6 w-6 text-red-600" />;
+        return <XCircle className="h-12 sm:h-16 w-12 sm:w-16" />;
       case 'HIGH':
-        return <AlertTriangle className="h-6 w-6 text-orange-600" />;
+        return <AlertTriangle className="h-12 sm:h-16 w-12 sm:w-16" />;
       case 'MEDIUM':
-        return <AlertTriangle className="h-6 w-6 text-yellow-600" />;
+        return <AlertTriangle className="h-12 sm:h-16 w-12 sm:w-16" />;
       case 'LOW':
-        return <CheckCircle className="h-6 w-6 text-green-600" />;
+        return <CheckCircle className="h-12 sm:h-16 w-12 sm:w-16" />;
       case 'VERY LOW':
-        return <CheckCircle className="h-6 w-6 text-emerald-600" />;
+        return <CheckCircle className="h-12 sm:h-16 w-12 sm:w-16" />;
       default:
-        return <Info className="h-6 w-6 text-gray-600" />;
+        return <Shield className="h-12 sm:h-16 w-12 sm:w-16" />;
+    }
+  };
+
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'CRITICAL':
+        return 'text-red-500';
+      case 'HIGH':
+        return 'text-red-500';
+      case 'MEDIUM':
+        return 'text-[#ffd700]';
+      case 'LOW':
+        return 'text-[#00ff88]';
+      case 'VERY LOW':
+        return 'text-[#00ff88]';
+      default:
+        return 'text-[#8b949e]';
+    }
+  };
+
+  const getRiskBadgeBg = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'CRITICAL':
+        return 'bg-red-500/20 border-red-500/50 text-red-400';
+      case 'HIGH':
+        return 'bg-red-500/20 border-red-500/50 text-red-400';
+      case 'MEDIUM':
+        return 'bg-[#ffd700]/20 border-[#ffd700]/50 text-[#ffd700]';
+      case 'LOW':
+        return 'bg-[#00ff88]/20 border-[#00ff88]/50 text-[#00ff88]';
+      case 'VERY LOW':
+        return 'bg-[#00ff88]/20 border-[#00ff88]/50 text-[#00ff88]';
+      default:
+        return 'bg-[#8b949e]/20 border-[#8b949e]/50 text-[#8b949e]';
+    }
+  };
+
+  const getRiskInterpretation = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'CRITICAL':
+        return 'This contract has critical security vulnerabilities. Avoid interaction.';
+      case 'HIGH':
+        return 'This contract has significant security concerns. Proceed with extreme caution.';
+      case 'MEDIUM':
+        return 'This contract has moderate security concerns. Conduct additional research.';
+      case 'LOW':
+        return 'This contract appears relatively safe, but always verify independently.';
+      case 'VERY LOW':
+        return 'This contract appears safe with no significant security concerns detected.';
+      default:
+        return 'Analysis completed with unknown risk level.';
     }
   };
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return <XCircle className="h-5 w-5 text-red-500" />;
+        return '🔴';
       case 'high':
-        return <AlertTriangle className="h-5 w-5 text-orange-500" />;
+        return '⚠️';
       case 'medium':
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+        return '⚡';
       case 'low':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return '✓';
       case 'info':
-        return <Info className="h-5 w-5 text-blue-500" />;
+        return 'ℹ️';
       default:
-        return <Info className="h-5 w-5 text-gray-500" />;
-    }
-  };
-
-  const getRiskLevelBadgeClass = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'CRITICAL':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'HIGH':
-        return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'MEDIUM':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'LOW':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'VERY LOW':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getSeverityBadgeClass = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'high':
-        return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'low':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'info':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return '•';
     }
   };
 
   const downloadReport = () => {
     const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `bsc-security-scan-${ApiService.formatAddress(result.address)}-${timestamp}.json`;
+    const filename = `bsc-security-scan-${result.address.slice(0, 10)}-${timestamp}.json`;
     ApiService.downloadAsJSON(result, filename);
   };
 
@@ -107,235 +152,245 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onNewScan }) => {
   const severityOrder = ['critical', 'high', 'medium', 'low', 'info'];
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <Shield className="h-6 w-6 mr-2 text-blue-600" />
-              Security Analysis Complete
-            </h2>
-            <p className="text-gray-600 mt-1">
-              Contract: <code className="bg-gray-100 px-2 py-1 rounded text-sm">{result.address}</code>
-            </p>
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={downloadReport}
-              className="flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download Report
-            </button>
-            <button
-              onClick={onNewScan}
-              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              New Scan
-            </button>
-          </div>
+    <div className="w-full max-w-4xl mx-auto space-y-6">
+      {/* Massive Risk Badge - Above the Fold */}
+      <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-8 sm:p-12 text-center">
+        <div className={`flex justify-center mb-6 ${getRiskLevelColor(result.risk_level)}`}>
+          {getRiskLevelIcon(result.risk_level)}
         </div>
 
-        {/* Contract Info */}
-        {(result.name || result.symbol) && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {result.name && (
-              <div>
-                <span className="text-sm text-gray-500">Token Name</span>
-                <p className="font-medium">{result.name}</p>
-              </div>
-            )}
-            {result.symbol && (
-              <div>
-                <span className="text-sm text-gray-500">Symbol</span>
-                <p className="font-medium">{result.symbol}</p>
-              </div>
-            )}
-            <div>
-              <span className="text-sm text-gray-500">Scan Type</span>
-              <div className="flex items-center">
-                {result.quick_scan ? (
-                  <>
-                    <Zap className="h-4 w-4 mr-1 text-yellow-500" />
-                    <span className="font-medium">Quick Scan</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock className="h-4 w-4 mr-1 text-blue-500" />
-                    <span className="font-medium">Full Analysis</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <div className={`inline-flex items-center px-6 py-3 rounded-lg border-2 text-2xl sm:text-4xl font-bold mb-4 ${getRiskBadgeBg(result.risk_level)}`}>
+          {result.risk_level}
+        </div>
 
-        {/* Risk Score */}
-        <div className="bg-gray-50 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              {getRiskLevelIcon(result.risk_level)}
-              <div className="ml-3">
-                <h3 className="text-lg font-semibold text-gray-900">Risk Assessment</h3>
-                <p className="text-gray-600">Overall security evaluation</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getRiskLevelBadgeClass(result.risk_level)}`}>
-                {result.risk_level}
-              </div>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {result.risk_score}/100
-              </p>
-            </div>
-          </div>
+        <div className="text-4xl sm:text-6xl font-mono font-bold text-[#e6edf3] mb-4">
+          {result.risk_score}<span className="text-[#6e7681]">/100</span>
+        </div>
 
-          {/* Risk Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-            <div
-              className={`h-3 rounded-full transition-all duration-500 ${
-                result.risk_level === 'CRITICAL' ? 'bg-red-500' :
-                result.risk_level === 'HIGH' ? 'bg-orange-500' :
-                result.risk_level === 'MEDIUM' ? 'bg-yellow-500' :
-                result.risk_level === 'LOW' ? 'bg-green-500' :
-                'bg-emerald-500'
-              }`}
-              style={{ width: `${riskPercentage}%` }}
-            ></div>
-          </div>
-          <p className="text-sm text-gray-600">
-            {result.findings.length} security finding{result.findings.length !== 1 ? 's' : ''} detected
-          </p>
+        <p className="text-[#8b949e] text-sm sm:text-base max-w-2xl mx-auto mb-6">
+          {getRiskInterpretation(result.risk_level)}
+        </p>
+
+        {/* Progress bar */}
+        <div className="w-full max-w-md mx-auto bg-[#0d1117] rounded-full h-3 border border-[#21262d] mb-6">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH' ? 'bg-gradient-to-r from-red-500 to-red-600' :
+              result.risk_level === 'MEDIUM' ? 'bg-gradient-to-r from-[#ffd700] to-yellow-500' :
+              'bg-gradient-to-r from-[#00ff88] to-[#00cc6a]'
+            }`}
+            style={{ width: `${riskPercentage}%` }}
+          ></div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={onNewScan}
+            className="px-6 py-3 bg-[#00ff88] text-[#0d1117] rounded-lg font-semibold hover:bg-[#00ff88]/90 transition-colors flex items-center justify-center gap-2"
+          >
+            <Zap className="h-5 w-5" />
+            Analyze Another Contract
+          </button>
+          <button
+            onClick={downloadReport}
+            className="px-6 py-3 bg-[#21262d] text-[#e6edf3] rounded-lg font-semibold hover:bg-[#30363d] transition-colors flex items-center justify-center gap-2"
+          >
+            <Download className="h-5 w-5" />
+            Download Report
+          </button>
         </div>
       </div>
 
-      {/* Error Display */}
-      {result.error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <XCircle className="h-5 w-5 text-red-500 mt-0.5 mr-3" />
+      {/* Contract Info */}
+      <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-6">
+        <h3 className="text-lg font-semibold text-[#e6edf3] mb-4 flex items-center gap-2">
+          <Info className="h-5 w-5 text-[#00ff88]" />
+          Contract Information
+        </h3>
+
+        <div className="space-y-4">
+          {/* Address with copy */}
+          <div>
+            <div className="text-xs text-[#6e7681] mb-1 uppercase tracking-wide">Address</div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-[#0d1117] px-3 py-2 rounded border border-[#21262d] text-[#00ff88] font-mono text-sm break-all">
+                {result.address}
+              </code>
+              <button
+                onClick={copyAddress}
+                className="p-2 bg-[#21262d] hover:bg-[#30363d] rounded border border-[#30363d] transition-colors"
+                title="Copy address"
+              >
+                {copiedAddress ? (
+                  <Check className="h-4 w-4 text-[#00ff88]" />
+                ) : (
+                  <Copy className="h-4 w-4 text-[#8b949e]" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Token archetype */}
+          {result.archetype && result.archetype.type !== 'unknown' && (
             <div>
-              <h4 className="font-medium text-red-800">Analysis Error</h4>
-              <p className="text-red-700 mt-1">{result.error}</p>
-              {result.error_type && (
-                <p className="text-sm text-red-600 mt-1">Error Type: {result.error_type}</p>
-              )}
+              <div className="text-xs text-[#6e7681] mb-1 uppercase tracking-wide">Token Type</div>
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-[#00ff88]" />
+                <span className="text-[#e6edf3] font-medium capitalize">
+                  {result.archetype.type.replace('_', ' ')}
+                </span>
+                {result.archetype.confidence && (
+                  <span className="text-xs text-[#8b949e]">
+                    ({Math.round(result.archetype.confidence * 100)}% confidence)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Metadata grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-[#21262d]">
+            {result.quick_scan !== undefined && (
+              <div>
+                <div className="text-xs text-[#6e7681] mb-1">Scan Type</div>
+                <div className="flex items-center gap-1 text-[#e6edf3]">
+                  {result.quick_scan ? (
+                    <>
+                      <Zap className="h-4 w-4 text-[#ffd700]" />
+                      <span className="text-sm">Quick</span>
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-4 w-4 text-[#00ff88]" />
+                      <span className="text-sm">Full</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {result.scan_time && (
+              <div>
+                <div className="text-xs text-[#6e7681] mb-1">Scanned</div>
+                <div className="flex items-center gap-1 text-[#e6edf3]">
+                  <Clock className="h-4 w-4 text-[#8b949e]" />
+                  <span className="text-sm">{new Date(result.scan_time).toLocaleDateString()}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="col-span-2 sm:col-span-1">
+              <div className="text-xs text-[#6e7681] mb-1">Blockchain</div>
+              <div className="text-sm text-[#e6edf3]">
+                <a
+                  href={`https://bscscan.com/address/${result.address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[#00ff88] hover:text-[#00cc6a] transition-colors"
+                >
+                  View on BSCScan
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Security Findings */}
-      {result.findings.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-            <AlertTriangle className="h-5 w-5 mr-2 text-orange-500" />
+      {result.findings.length > 0 ? (
+        <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-6">
+          <h3 className="text-lg font-semibold text-[#e6edf3] mb-4 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-[#ffd700]" />
             Security Findings ({result.findings.length})
           </h3>
 
-          <div className="space-y-4">
-            {severityOrder.map(severity => {
-              const findings = findingsBySeverity[severity];
-              if (!findings || findings.length === 0) return null;
+          <div className="space-y-3">
+            {result.findings.map((finding, index) => {
+              const isExpanded = expandedFindings.has(index);
+              const hasDetails = finding.details && finding.details.length > 0;
 
               return (
-                <div key={severity} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className={`px-4 py-3 ${getSeverityBadgeClass(severity)} border-b border-gray-200`}>
-                    <div className="flex items-center">
-                      {getSeverityIcon(severity)}
-                      <span className="ml-2 font-medium capitalize">
-                        {severity} ({findings.length})
+                <div
+                  key={index}
+                  className="bg-[#0d1117] border border-[#21262d] rounded-lg overflow-hidden"
+                >
+                  <button
+                    onClick={() => hasDetails && toggleFinding(index)}
+                    className={`w-full p-4 text-left transition-colors ${
+                      hasDetails ? 'hover:bg-[#161b22] cursor-pointer' : 'cursor-default'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg flex-shrink-0 mt-0.5">
+                        {getSeverityIcon(finding.severity)}
                       </span>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-200">
-                    {findings.map((finding, index) => (
-                      <div key={`${severity}-${index}`} className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900 mb-2">
-                              {finding.message.replace(/[\u{1f600}-\u{1f64f}\u{1f300}-\u{1f5ff}\u{1f680}-\u{1f6ff}\u{1f1e0}-\u{1f1ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}]/gu, '')}
-                            </h4>
-                            <p className="text-gray-600 text-sm mb-2">{finding.details}</p>
-                            <div className="flex items-center text-xs text-gray-500">
-                              <span className="bg-gray-100 px-2 py-1 rounded">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-[#e6edf3] font-medium text-sm sm:text-base">
+                            {finding.message}
+                          </h4>
+                          {hasDetails && (
+                            <div className="flex-shrink-0">
+                              {isExpanded ? (
+                                <ChevronDown className="h-5 w-5 text-[#8b949e]" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5 text-[#8b949e]" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-[#6e7681] uppercase tracking-wide">
+                            {finding.severity}
+                          </span>
+                          {finding.type && (
+                            <>
+                              <span className="text-[#6e7681]">•</span>
+                              <span className="text-xs text-[#8b949e]">
                                 {finding.type.replace('_', ' ')}
                               </span>
-                            </div>
-                          </div>
+                            </>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  </button>
+
+                  {isExpanded && hasDetails && (
+                    <div className="px-4 pb-4 border-t border-[#21262d] pt-4 mt-2">
+                      <p className="text-sm text-[#8b949e] whitespace-pre-wrap">
+                        {finding.details}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
-      )}
-
-      {/* Warnings */}
-      {result.warnings && result.warnings.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h4 className="font-medium text-yellow-800 mb-3 flex items-center">
-            <AlertTriangle className="h-4 w-4 mr-2" />
-            Analysis Warnings ({result.warnings.length})
-          </h4>
-          <div className="space-y-2">
-            {result.warnings.map((warning, index) => (
-              <div key={index} className="text-sm text-yellow-700">
-                <strong>{warning.analysis}:</strong> {warning.error}
-              </div>
-            ))}
-          </div>
+      ) : (
+        <div className="bg-[#161b22] rounded-lg border border-[#00ff88]/30 p-8 text-center">
+          <CheckCircle className="h-12 w-12 text-[#00ff88] mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-[#e6edf3] mb-2">
+            No Security Issues Found
+          </h3>
+          <p className="text-[#8b949e]">
+            This contract passed all security checks. However, always conduct your own research.
+          </p>
         </div>
       )}
 
-      {/* Analysis Metadata */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Analysis Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <span className="text-sm text-gray-500">Scan Time</span>
-            <p className="font-medium">{ApiService.formatTimestamp(result.scan_time)}</p>
-          </div>
-          <div>
-            <span className="text-sm text-gray-500">Blockchain</span>
-            <p className="font-medium">{result.chain}</p>
-          </div>
-          {result.is_verified !== undefined && (
-            <div>
-              <span className="text-sm text-gray-500">Contract Verification</span>
-              <div className="flex items-center">
-                {result.is_verified ? (
-                  <>
-                    <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-                    <span className="font-medium text-green-700">Verified</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="h-4 w-4 text-red-500 mr-1" />
-                    <span className="font-medium text-red-700">Not Verified</span>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-          <div>
-            <span className="text-sm text-gray-500">BSCScan</span>
-            <a
-              href={`https://bscscan.com/address/${result.address}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center text-blue-600 hover:text-blue-800 font-medium"
-            >
-              View on BSCScan
-              <ExternalLink className="h-3 w-3 ml-1" />
-            </a>
-          </div>
-        </div>
+      {/* Bottom action button */}
+      <div className="flex justify-center">
+        <button
+          onClick={onNewScan}
+          className="px-6 py-3 bg-[#21262d] text-[#e6edf3] rounded-lg font-medium hover:bg-[#30363d] transition-colors flex items-center gap-2"
+        >
+          <Zap className="h-5 w-5" />
+          Analyze Another Contract
+        </button>
       </div>
     </div>
   );

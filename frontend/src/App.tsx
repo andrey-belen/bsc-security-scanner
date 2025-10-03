@@ -76,16 +76,16 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#0d1117]">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-[#161b22] border-b border-[#21262d]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <Shield className="h-8 w-8 text-blue-600 mr-3" />
+              <Shield className="h-8 w-8 text-[#00ff88] mr-3" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">BSC Security Scanner</h1>
-                <p className="text-sm text-gray-500">Smart Contract Security Analysis</p>
+                <h1 className="text-xl font-bold text-[#e6edf3]">BSC Security Scanner</h1>
+                <p className="text-sm text-[#8b949e]">Smart Contract Security Analysis</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -93,7 +93,8 @@ function App() {
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-500 hover:text-gray-700"
+                className="text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+                aria-label="GitHub"
               >
                 <Github className="h-5 w-5" />
               </a>
@@ -101,7 +102,7 @@ function App() {
                 href="https://bscscan.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+                className="flex items-center text-sm text-[#8b949e] hover:text-[#e6edf3] transition-colors"
               >
                 BSCScan <ExternalLink className="h-3 w-3 ml-1" />
               </a>
@@ -111,72 +112,70 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {state === 'form' && (
-            <ContractAnalysisForm
-              onAnalysisStart={handleAnalysisStart}
-              isLoading={false}
-            />
-          )}
+      <main className="max-w-7xl mx-auto py-6 sm:py-12 px-4 sm:px-6 lg:px-8">
+        {state === 'form' && (
+          <ContractAnalysisForm
+            onAnalysisStart={handleAnalysisStart}
+            isLoading={false}
+          />
+        )}
 
-          {state === 'loading' && (
-            <LoadingState
-              analysisId={analysisId}
-              address={currentAddress || 'Loading...'}
-              isQuickScan={isQuickScan}
-              elapsedTime={elapsedTime}
-              onCancel={handleCancel}
-            />
-          )}
+        {state === 'loading' && (
+          <LoadingState
+            analysisId={analysisId}
+            address={currentAddress || 'Loading...'}
+            isQuickScan={isQuickScan}
+            elapsedTime={elapsedTime}
+            onCancel={handleCancel}
+          />
+        )}
 
-          {state === 'results' && scanResult && (
-            <ScanResults
-              result={scanResult}
-              onNewScan={handleNewScan}
-            />
-          )}
+        {state === 'results' && scanResult && (
+          <ScanResults
+            result={scanResult}
+            onNewScan={handleNewScan}
+          />
+        )}
 
-          {state === 'error' && (
-            <div className="w-full max-w-2xl mx-auto">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                <div className="flex items-center mb-4">
-                  <Shield className="h-6 w-6 text-red-600 mr-3" />
-                  <h2 className="text-lg font-semibold text-red-900">Analysis Failed</h2>
-                </div>
-                <p className="text-red-700 mb-4">{error}</p>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={handleNewScan}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Try Again
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                  >
-                    Go Back
-                  </button>
-                </div>
+        {state === 'error' && (
+          <div className="w-full max-w-2xl mx-auto">
+            <div className="bg-[#161b22] border border-red-500/50 rounded-lg p-6">
+              <div className="flex items-center mb-4">
+                <Shield className="h-6 w-6 text-red-500 mr-3" />
+                <h2 className="text-lg font-semibold text-[#e6edf3]">Analysis Failed</h2>
+              </div>
+              <p className="text-red-400 mb-6">{error}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleNewScan}
+                  className="px-6 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="px-6 py-2.5 bg-[#21262d] text-[#e6edf3] rounded-lg hover:bg-[#30363d] transition-colors font-medium"
+                >
+                  Go Back
+                </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-12">
+      <footer className="bg-[#161b22] border-t border-[#21262d] mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-[#8b949e]">
               © 2024 BSC Security Scanner - Built for security analysis and educational purposes
             </div>
-            <div className="flex items-center space-x-6 text-sm text-gray-500">
+            <div className="flex items-center gap-4 sm:gap-6 text-sm text-[#8b949e]">
               <span>Binance Smart Chain</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>Security Analysis</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>Portfolio Project</span>
             </div>
           </div>

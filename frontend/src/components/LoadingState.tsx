@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Clock, Search, CheckCircle } from 'lucide-react';
+import { Shield, Clock, AlertTriangle, CheckCircle, Loader2, X } from 'lucide-react';
 
 interface LoadingStateProps {
   analysisId: string;
@@ -22,22 +22,27 @@ const LoadingState: React.FC<LoadingStateProps> = ({
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
-  const estimatedTotal = isQuickScan ? 60 : 180; // seconds
+  const estimatedTotal = isQuickScan ? 45 : 90; // seconds (more realistic)
   const progress = Math.min((elapsedTime / estimatedTotal) * 100, 95); // Cap at 95% until complete
+  const remainingTime = Math.max(estimatedTotal - elapsedTime, 0);
+
+  // Warning states
+  const isSlowAnalysis = elapsedTime > 90;
+  const isVerySlowAnalysis = elapsedTime > 110;
 
   const analysisSteps = isQuickScan
     ? [
-        'Contract verification check',
-        'Basic ownership analysis',
-        'Quick function scan',
+        'Verifying contract',
+        'Analyzing ownership',
+        'Scanning functions',
       ]
     : [
-        'Contract verification check',
-        'Ownership analysis',
-        'Honeypot detection',
-        'Function analysis',
-        'Liquidity analysis',
-        'Holder distribution check',
+        'Verifying contract',
+        'Analyzing ownership',
+        'Detecting honeypot patterns',
+        'Scanning dangerous functions',
+        'Checking liquidity',
+        'Computing risk score',
       ];
 
   const currentStepIndex = Math.min(
@@ -45,107 +50,157 @@ const LoadingState: React.FC<LoadingStateProps> = ({
     analysisSteps.length - 1
   );
 
+  const getCurrentMessage = () => {
+    if (isVerySlowAnalysis) {
+      return 'Analysis is taking longer than expected. This may be a complex contract.';
+    }
+    if (isSlowAnalysis) {
+      return 'Analysis taking longer than usual...';
+    }
+    return analysisSteps[currentStepIndex];
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="flex justify-center mb-4">
+      <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-6 sm:p-8">
+        {/* Header with terminal-style spinner */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
             <div className="relative">
-              <Shield className="h-12 w-12 text-blue-600" />
-              <div className="absolute -top-1 -right-1 h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <Shield className="h-16 w-16 text-[#00ff88]" />
+              <div className="absolute -top-2 -right-2">
+                <Loader2 className="h-8 w-8 text-[#00ff88] animate-spin" />
               </div>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {isQuickScan ? 'Quick Analysis' : 'Security Analysis'} in Progress
+          <h2 className="text-2xl sm:text-3xl font-bold text-[#e6edf3] mb-3">
+            {isQuickScan ? '⚡ Quick Analysis' : '🔍 Security Analysis'} in Progress
           </h2>
-          <p className="text-gray-600">
-            Analyzing contract: <code className="bg-gray-100 px-2 py-1 rounded text-sm">{address}</code>
-          </p>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className="text-[#8b949e]">Analyzing:</span>
+            <code className="bg-[#0d1117] px-3 py-1.5 rounded border border-[#21262d] text-sm text-[#00ff88] font-mono">
+              {address.slice(0, 10)}...{address.slice(-8)}
+            </code>
+          </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span>Progress</span>
-            <span>{Math.round(progress)}%</span>
+        {/* Current step message with terminal aesthetic */}
+        <div className="mb-6 p-4 bg-[#0d1117] border border-[#21262d] rounded-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-[#00ff88] font-mono text-lg">&gt;</span>
+            <span className="text-[#e6edf3] font-mono text-sm sm:text-base flex-1">
+              {getCurrentMessage()}
+            </span>
+            <div className="flex gap-1">
+              <span className="inline-block w-2 h-2 bg-[#00ff88] rounded-full animate-pulse"></span>
+              <span className="inline-block w-2 h-2 bg-[#00ff88] rounded-full animate-pulse delay-75"></span>
+              <span className="inline-block w-2 h-2 bg-[#00ff88] rounded-full animate-pulse delay-150"></span>
+            </div>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-6">
+          <div className="flex justify-between text-sm text-[#8b949e] mb-2">
+            <span>Progress</span>
+            <span className="font-mono">{Math.round(progress)}%</span>
+          </div>
+          <div className="w-full bg-[#0d1117] rounded-full h-2 border border-[#21262d]">
             <div
-              className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+              className="bg-gradient-to-r from-[#00ff88] to-[#00cc6a] h-full rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
         </div>
 
-        {/* Time Info */}
-        <div className="flex justify-between items-center mb-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center text-gray-600">
-            <Clock className="h-4 w-4 mr-2" />
-            <span className="text-sm">
-              Elapsed: <span className="font-medium">{formatTime(elapsedTime)}</span>
-            </span>
-          </div>
-          <div className="text-sm text-gray-600">
-            Estimated: <span className="font-medium">{isQuickScan ? '30-60s' : '2-3min'}</span>
-          </div>
-        </div>
-
-        {/* Analysis Steps */}
-        <div className="space-y-3 mb-6">
-          <h3 className="font-medium text-gray-900 mb-3">Analysis Steps</h3>
-          {analysisSteps.map((step, index) => (
-            <div key={index} className="flex items-center space-x-3">
-              {index < currentStepIndex ? (
-                <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-              ) : index === currentStepIndex ? (
-                <div className="h-5 w-5 flex-shrink-0">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-                </div>
-              ) : (
-                <div className="h-5 w-5 rounded-full border-2 border-gray-300 flex-shrink-0"></div>
-              )}
-              <span
-                className={`text-sm ${
-                  index <= currentStepIndex
-                    ? 'text-gray-900 font-medium'
-                    : 'text-gray-500'
-                }`}
-              >
-                {step}
-              </span>
+        {/* Time info */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="p-4 bg-[#0d1117] border border-[#21262d] rounded-lg">
+            <div className="flex items-center gap-2 text-[#8b949e] text-xs mb-1">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Elapsed</span>
             </div>
-          ))}
+            <div className="text-[#e6edf3] font-mono text-lg font-semibold">
+              {formatTime(elapsedTime)}
+            </div>
+          </div>
+          <div className="p-4 bg-[#0d1117] border border-[#21262d] rounded-lg">
+            <div className="text-[#8b949e] text-xs mb-1">Remaining</div>
+            <div className="text-[#00ff88] font-mono text-lg font-semibold">
+              ~{formatTime(remainingTime)}
+            </div>
+          </div>
         </div>
 
-        {/* Analysis ID and Info */}
-        <div className="border-t border-gray-200 pt-4">
-          <div className="text-xs text-gray-500 mb-2">Analysis ID</div>
-          <div className="font-mono text-sm bg-gray-100 p-2 rounded border">
-            {analysisId}
-          </div>
-          
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-start">
-              <Search className="h-4 w-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
-              <div className="text-sm text-blue-700">
-                <strong>What we're analyzing:</strong> Smart contract bytecode, ownership patterns, 
-                transaction restrictions, tax mechanisms, and liquidity conditions to identify 
-                potential security risks and vulnerabilities.
+        {/* Timeout warnings */}
+        {isVerySlowAnalysis && (
+          <div className="mb-6 p-4 bg-[#ffd700]/10 border border-[#ffd700]/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-[#ffd700] mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="text-[#ffd700] font-medium mb-1">Taking Longer Than Expected</h4>
+                <p className="text-[#e6edf3] text-sm">
+                  This contract may be complex or the network is slow. You can cancel and try quick scan mode.
+                </p>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Analysis steps */}
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-[#8b949e] mb-4 uppercase tracking-wide">
+            Analysis Steps
+          </h3>
+          <div className="space-y-2">
+            {analysisSteps.map((step, index) => (
+              <div key={index} className="flex items-center gap-3 p-2 rounded transition-colors">
+                {index < currentStepIndex ? (
+                  <CheckCircle className="h-5 w-5 text-[#00ff88] flex-shrink-0" />
+                ) : index === currentStepIndex ? (
+                  <Loader2 className="h-5 w-5 text-[#00ff88] flex-shrink-0 animate-spin" />
+                ) : (
+                  <div className="h-5 w-5 rounded-full border-2 border-[#21262d] flex-shrink-0"></div>
+                )}
+                <span
+                  className={`text-sm font-mono ${
+                    index <= currentStepIndex
+                      ? 'text-[#e6edf3] font-medium'
+                      : 'text-[#6e7681]'
+                  }`}
+                >
+                  {step}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Cancel Button */}
+        {/* Loading skeleton preview */}
+        <div className="mb-6 p-4 bg-[#0d1117] border border-[#21262d] rounded-lg">
+          <div className="space-y-3">
+            <div className="h-4 bg-[#21262d] rounded animate-pulse w-3/4"></div>
+            <div className="h-4 bg-[#21262d] rounded animate-pulse w-1/2"></div>
+            <div className="h-4 bg-[#21262d] rounded animate-pulse w-5/6"></div>
+          </div>
+        </div>
+
+        {/* Analysis ID */}
+        <div className="border-t border-[#21262d] pt-6">
+          <div className="text-xs text-[#6e7681] mb-2 uppercase tracking-wide">Analysis ID</div>
+          <div className="font-mono text-xs bg-[#0d1117] p-3 rounded border border-[#21262d] text-[#8b949e] break-all">
+            {analysisId}
+          </div>
+        </div>
+
+        {/* Cancel button */}
         {onCancel && (
-          <div className="mt-6 text-center">
+          <div className="mt-6 flex justify-center">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm underline"
+              className="flex items-center gap-2 px-4 py-2 text-[#8b949e] hover:text-red-400 transition-colors text-sm group"
             >
+              <X className="h-4 w-4 group-hover:rotate-90 transition-transform" />
               Cancel Analysis
             </button>
           </div>

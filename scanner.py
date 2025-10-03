@@ -19,11 +19,9 @@ from rich.progress import track
 from rich import print as rprint
 
 from config import BSC_CONFIG, is_valid_bsc_address
-from analyzers.ownership import OwnershipAnalyzer
-from analyzers.honeypot import HoneypotAnalyzer  
-from analyzers.functions import FunctionAnalyzer
+from analyzers.core_analyzer import CoreSecurityAnalyzer
 from utils.error_handler import (
-    ErrorAggregator, with_retry, RetryConfig, 
+    ErrorAggregator, with_retry, RetryConfig,
     SecurityScannerError, ContractNotFoundError,
     default_rate_limiter, with_rate_limit
 )
@@ -35,12 +33,10 @@ from utils.cache import (
 
 class BSCSecurityScanner:
     """Main BSC Security Scanner class"""
-    
+
     def __init__(self):
         self.console = Console()
-        self.ownership_analyzer = OwnershipAnalyzer()
-        self.honeypot_analyzer = HoneypotAnalyzer()
-        self.function_analyzer = FunctionAnalyzer()
+        self.core_analyzer = CoreSecurityAnalyzer()
         self.error_aggregator = ErrorAggregator()
         
     def scan_contract(self, address: str, quick_scan: bool = False) -> Dict:
@@ -58,13 +54,24 @@ class BSCSecurityScanner:
         # Validate address format
         if not is_valid_bsc_address(address):
             raise ContractNotFoundError(f"Invalid BSC address format: {address}")
-        
+
         # Check cache first
         cache_key = get_contract_cache_key(address)
         cached_result = get_cached_contract_result(address)
-        if cached_result and not quick_scan:
+        if cached_result:
             self.console.print(f"📋 [green]Using cached results for {address}[/green]")
             return cached_result
+
+        # Use core analyzer
+        self.console.print(f"\n🔍 [bold cyan]Enhanced BSC Security Scanner[/bold cyan]")
+        self.console.print("=" * 50)
+
+        results = self.core_analyzer.analyze_contract(address, quick_scan)
+
+        # Cache results
+        cache_contract_result(address, results)
+
+        return results
         
         self.console.print(f"\n🔍 [bold cyan]BSC Security Scanner[/bold cyan]")
         self.console.print("=" * 50)
@@ -153,7 +160,7 @@ class BSCSecurityScanner:
             # Cache results if successful
             if not quick_scan and scan_results["risk_level"] != "UNKNOWN":
                 cache_contract_result(address, scan_results, ttl=3600)
-            
+
             return scan_results
             
         except Exception as e:
@@ -196,10 +203,13 @@ class BSCSecurityScanner:
         }
     
     @with_retry(RetryConfig(max_attempts=2, base_delay=0.5))
-    def _execute_analysis_safe(self, analysis_func, address: str, analysis_name: str) -> Dict:
+    def _execute_analysis_safe(self, analysis_func, address: str, analysis_name: str, **kwargs) -> Dict:
         """Execute analysis function with error handling"""
         try:
-            return analysis_func(address)
+            if kwargs:
+                return analysis_func(address, **kwargs)
+            else:
+                return analysis_func(address)
         except Exception as e:
             self.error_aggregator.add_error(e, analysis_name)
             return {
@@ -351,6 +361,241 @@ class BSCSecurityScanner:
 """
         
         return md_content
+
+    def _get_archetype_specific_analyses(self, archetype: str, quick_scan: bool) -> List[Tuple]:
+        """Get analyses specific to the token archetype"""
+        base_analyses = [("Contract Verification", self._check_verification)]
+
+        if archetype == TokenArchetype.STANDARD_ERC20:
+            if not quick_scan:
+                return base_analyses + [
+                    ("Ownership Analysis", self.ownership_analyzer.analyze),
+                    ("Function Analysis", self.function_analyzer.analyze),
+                    ("Liquidity Analysis", self._check_liquidity),
+                    ("Holder Distribution", self._check_holder_distribution)
+                ]
+            else:
+                return base_analyses + [
+                    ("Basic Ownership", self.ownership_analyzer.basic_check),
+                    ("Quick Function Scan", self.function_analyzer.quick_scan)
+                ]
+
+        elif archetype == TokenArchetype.TAX_FEE_TOKEN:
+            if not quick_scan:
+                return base_analyses + [
+                    ("Ownership Analysis", self.ownership_analyzer.analyze),
+                    ("Tax/Fee Mechanisms", self.honeypot_analyzer.analyze),  # Focus on tax analysis
+                    ("Function Analysis", self.function_analyzer.analyze),
+                    ("Blacklist Detection", self._check_blacklist_mechanisms),
+                    ("Liquidity Analysis", self._check_liquidity)
+                ]
+            else:
+                return base_analyses + [
+                    ("Basic Ownership", self.ownership_analyzer.basic_check),
+                    ("Quick Tax Check", self.honeypot_analyzer._check_tax_mechanisms),
+                    ("Quick Function Scan", self.function_analyzer.quick_scan)
+                ]
+
+        elif archetype == TokenArchetype.WRAPPER_TOKEN:
+            if not quick_scan:
+                return base_analyses + [
+                    ("Ownership Analysis", self.ownership_analyzer.analyze),
+                    ("Function Analysis", self.function_analyzer.analyze),
+                    ("Deposit/Withdraw Analysis", self._check_wrapper_mechanisms)
+                ]
+            else:
+                return base_analyses + [
+                    ("Basic Ownership", self.ownership_analyzer.basic_check),
+                    ("Quick Function Scan", self.function_analyzer.quick_scan)
+                ]
+
+        elif archetype == TokenArchetype.DEX_ROUTER or archetype == TokenArchetype.DEX_FACTORY:
+            if not quick_scan:
+                return base_analyses + [
+                    ("Ownership Analysis", self.ownership_analyzer.analyze),
+                    ("Function Analysis", self.function_analyzer.analyze),
+                    ("DEX Security Analysis", self._check_dex_security)
+                ]
+            else:
+                return base_analyses + [
+                    ("Basic Ownership", self.ownership_analyzer.basic_check),
+                    ("Quick Function Scan", self.function_analyzer.quick_scan)
+                ]
+
+        else:  # Unknown or mixed archetype
+            if not quick_scan:
+                return base_analyses + [
+                    ("Ownership Analysis", self.ownership_analyzer.analyze),
+                    ("Honeypot Detection", self.honeypot_analyzer.analyze),
+                    ("Function Analysis", self.function_analyzer.analyze),
+                    ("Liquidity Analysis", self._check_liquidity),
+                    ("Holder Distribution", self._check_holder_distribution)
+                ]
+            else:
+                return base_analyses + [
+                    ("Basic Ownership", self.ownership_analyzer.basic_check),
+                    ("Quick Function Scan", self.function_analyzer.quick_scan)
+                ]
+
+    def _adjust_risk_score_by_archetype(self, base_score: int, archetype: str, confidence_scores: Dict) -> int:
+        """Adjust risk score based on archetype context and confidence"""
+        adjusted_score = base_score
+
+        # Apply archetype-specific adjustments
+        if archetype == TokenArchetype.TAX_FEE_TOKEN:
+            # Tax tokens naturally have higher base risk, adjust accordingly
+            tax_findings = any('tax' in str(finding).lower() for finding in confidence_scores)
+            if not tax_findings:
+                adjusted_score = int(base_score * 0.9)  # Slight reduction if no tax issues found
+
+        elif archetype == TokenArchetype.WRAPPER_TOKEN:
+            # Wrapper tokens have different risk profile
+            adjusted_score = int(base_score * 0.8)  # Generally lower risk
+
+        elif archetype == TokenArchetype.STANDARD_ERC20:
+            # Standard tokens should have minimal additional mechanisms
+            function_confidence = confidence_scores.get("Function Analysis", 0.5)
+            if function_confidence > 0.8:
+                adjusted_score = int(base_score * 1.0)  # No adjustment for high confidence
+            else:
+                adjusted_score = int(base_score * 0.9)  # Slight reduction for lower confidence
+
+        # Apply overall confidence adjustment
+        avg_confidence = sum(confidence_scores.values()) / len(confidence_scores) if confidence_scores else 0.5
+        confidence_multiplier = 0.7 + (avg_confidence * 0.3)  # Scale from 0.7 to 1.0
+
+        final_score = int(adjusted_score * confidence_multiplier)
+        return max(final_score, 0)  # Ensure non-negative
+
+    def _display_findings_with_confidence(self, findings: List[Dict]) -> None:
+        """Display findings with confidence indicators"""
+        for finding in findings:
+            message = finding.get("message", "")
+            confidence = finding.get("confidence", 0.5)
+
+            # Add confidence indicator if not already present
+            if confidence < 0.4 and "(low confidence)" not in message:
+                message += " (low confidence)"
+            elif confidence >= 0.8 and "(high confidence)" not in message:
+                message += " (high confidence)"
+
+            self.console.print(message)
+
+    def _check_blacklist_mechanisms(self, address: str) -> Dict:
+        """Specialized analysis for blacklist mechanisms"""
+        # This would be a focused analysis for blacklist functionality
+        # For now, delegate to honeypot analyzer
+        return self.honeypot_analyzer._check_transfer_restrictions(address)
+
+    def _check_wrapper_mechanisms(self, address: str) -> Dict:
+        """Specialized analysis for wrapper token mechanisms"""
+        # Placeholder for wrapper-specific analysis
+        return {"findings": [], "risk_points": 0, "confidence": 0.7}
+
+    def _check_dex_security(self, address: str) -> Dict:
+        """Specialized analysis for DEX security"""
+        # Placeholder for DEX-specific analysis
+        return {"findings": [], "risk_points": 0, "confidence": 0.7}
+
+    def _scan_with_enhanced_analyzer(self, address: str, quick_scan: bool) -> Dict:
+        """
+        Scan using the enhanced analyzer with archetype-first approach
+        """
+        try:
+            self.console.print(f"\n🔍 [bold cyan]Enhanced BSC Security Scanner[/bold cyan]")
+            self.console.print("=" * 50)
+            self.console.print(f"📍 [bold]Address:[/bold] {address}")
+
+            # Run enhanced analysis
+            enhanced_results = self.enhanced_analyzer.analyze_contract(address, quick_scan)
+
+            # Display archetype
+            archetype_info = enhanced_results["archetype"]
+            archetype_display = archetype_info["type"].replace('_', ' ').title()
+            confidence_display = f"{archetype_info['confidence']:.1%}"
+
+            if archetype_info["confidence"] >= 0.7:
+                self.console.print(f"🔬 [bold green]Token Type:[/bold green] {archetype_display} (confidence: {confidence_display})")
+            elif archetype_info["confidence"] >= 0.4:
+                self.console.print(f"🔬 [bold yellow]Token Type:[/bold yellow] {archetype_display} (confidence: {confidence_display})")
+            else:
+                self.console.print(f"🔬 [bold red]Token Type:[/bold red] Unknown/Mixed (confidence: {confidence_display})")
+
+            # Display analysis results
+            self.console.print(f"\n🔐 [bold green]Security Analysis Results:[/bold green]")
+
+            # Convert enhanced findings to legacy format for display
+            legacy_findings = []
+            for finding in enhanced_results["findings"]:
+                severity_emoji = {
+                    'critical': '🔴',
+                    'high': '🔴',
+                    'medium': '⚠️',
+                    'low': '✅',
+                    'info': 'ℹ️'
+                }.get(finding['severity'], '❓')
+
+                # Format message with confidence indicator
+                message = f"{severity_emoji} {finding['description']}"
+                if finding['confidence'] < 0.4:
+                    message += " (low confidence)"
+                elif finding['confidence'] >= 0.8:
+                    message += " (high confidence)"
+
+                legacy_findings.append({
+                    "type": finding["type"],
+                    "severity": finding["severity"],
+                    "message": message,
+                    "details": ", ".join(finding["evidence"]) if finding["evidence"] else finding["description"],
+                    "confidence": finding["confidence"]
+                })
+
+            # Display findings
+            self._display_findings_with_confidence(legacy_findings)
+
+            # Display summary
+            risk_level = enhanced_results["risk_level"]
+            risk_score = enhanced_results["risk_score"]
+
+            self.console.print(f"\n🎯 [bold]Risk Assessment:[/bold]")
+            self.console.print(f"📊 Risk Score: {risk_score}/100")
+
+            risk_color = {
+                "VERY LOW": "green",
+                "LOW": "green",
+                "MEDIUM": "yellow",
+                "HIGH": "red",
+                "CRITICAL": "red"
+            }.get(risk_level, "white")
+
+            self.console.print(f"🚨 Risk Level: [{risk_color}]{risk_level}[/{risk_color}]")
+
+            # Convert to legacy format for compatibility
+            scan_results = {
+                "address": address,
+                "scan_time": datetime.now().isoformat(),
+                "chain": "Binance Smart Chain (BSC)",
+                "quick_scan": quick_scan,
+                "findings": legacy_findings,
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "archetype": archetype_info,
+                "analysis_confidence": enhanced_results["analysis_confidence"],
+                "enhanced": True
+            }
+
+            # Cache results if successful
+            if not quick_scan and risk_level != "UNKNOWN":
+                cache_contract_result(address, scan_results, ttl=3600)
+
+            return scan_results
+
+        except Exception as e:
+            self.console.print(f"❌ [bold red]Enhanced scan failed: {str(e)}[/bold red]")
+            self.console.print("⚠️ [yellow]Falling back to legacy analyzer...[/yellow]")
+            # Fall back to legacy analyzer
+            self.use_enhanced = False
+            return self.scan_contract(address, quick_scan)
 
 
 def main():
