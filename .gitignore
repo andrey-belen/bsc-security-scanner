@@ -79,11 +79,10 @@ api_keys.txt
 # Cache directories
 .cache/
 *.cache
-__pycache__/
 .mypy_cache/
 .pytest_cache/
 
-# Generated reports (optional - you might want to keep sample reports)
+# Generated reports
 reports/*.json
 reports/*.md
 !reports/sample_scan.json
@@ -91,12 +90,15 @@ reports/*.md
 # Logs
 *.log
 logs/
+backend.log
+frontend.log
 
 # Temporary files
 *.tmp
 *.temp
 .tmp/
 temp/
+temp_reports/
 
 # Operating System
 .DS_Store
@@ -107,37 +109,29 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Claude Code specific
-.claude/
-ai_docs/
-
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+database/
 
-# Development and testing
-.coverage
-.pytest_cache/
-.tox/
+# Node.js
 node_modules/
-
-# Documentation build
-docs/_build/
-site/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Backup files
 *.bak
 *.backup
-*~
 
 # Package manager
 requirements-simple.txt
 .mcp.json
-/database
-/reports
-/reports
+
+# Test files
 test_enhanced_scanner.py
-/tests
-CLAUDE.md
+tests/
+/ai_docs
+/.claude
 CLAUDE.md

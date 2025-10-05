@@ -13,7 +13,14 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Tag
+  Activity,
+  Users,
+  Droplets,
+  FlaskConical,
+  BarChart3,
+  Lock,
+  Unlock,
+  Coins
 } from 'lucide-react';
 import { ScanResult, ScanFinding } from '../types/api';
 import { ApiService } from '../services/api';
@@ -47,88 +54,50 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onNewScan }) => {
     setExpandedFindings(newExpanded);
   };
 
-  const getRiskLevelIcon = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'CRITICAL':
-        return <XCircle className="h-12 sm:h-16 w-12 sm:w-16" />;
-      case 'HIGH':
-        return <AlertTriangle className="h-12 sm:h-16 w-12 sm:w-16" />;
-      case 'MEDIUM':
-        return <AlertTriangle className="h-12 sm:h-16 w-12 sm:w-16" />;
-      case 'LOW':
-        return <CheckCircle className="h-12 sm:h-16 w-12 sm:w-16" />;
-      case 'VERY LOW':
-        return <CheckCircle className="h-12 sm:h-16 w-12 sm:w-16" />;
-      default:
-        return <Shield className="h-12 sm:h-16 w-12 sm:w-16" />;
-    }
-  };
-
   const getRiskLevelColor = (riskLevel: string) => {
     switch (riskLevel) {
       case 'CRITICAL':
-        return 'text-red-500';
       case 'HIGH':
-        return 'text-red-500';
+        return 'from-red-500 to-red-600';
       case 'MEDIUM':
-        return 'text-[#ffd700]';
+        return 'from-yellow-500 to-amber-500';
       case 'LOW':
-        return 'text-[#00ff88]';
       case 'VERY LOW':
-        return 'text-[#00ff88]';
+        return 'from-green-500 to-emerald-500';
       default:
-        return 'text-[#8b949e]';
+        return 'from-gray-500 to-gray-600';
     }
   };
 
-  const getRiskBadgeBg = (riskLevel: string) => {
+  const getRiskTextColor = (riskLevel: string) => {
     switch (riskLevel) {
       case 'CRITICAL':
-        return 'bg-red-500/20 border-red-500/50 text-red-400';
       case 'HIGH':
-        return 'bg-red-500/20 border-red-500/50 text-red-400';
+        return 'text-red-400';
       case 'MEDIUM':
-        return 'bg-[#ffd700]/20 border-[#ffd700]/50 text-[#ffd700]';
+        return 'text-yellow-400';
       case 'LOW':
-        return 'bg-[#00ff88]/20 border-[#00ff88]/50 text-[#00ff88]';
       case 'VERY LOW':
-        return 'bg-[#00ff88]/20 border-[#00ff88]/50 text-[#00ff88]';
+        return 'text-green-400';
       default:
-        return 'bg-[#8b949e]/20 border-[#8b949e]/50 text-[#8b949e]';
+        return 'text-gray-400';
     }
   };
 
-  const getRiskInterpretation = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'CRITICAL':
-        return 'This contract has critical security vulnerabilities. Avoid interaction.';
-      case 'HIGH':
-        return 'This contract has significant security concerns. Proceed with extreme caution.';
-      case 'MEDIUM':
-        return 'This contract has moderate security concerns. Conduct additional research.';
-      case 'LOW':
-        return 'This contract appears relatively safe, but always verify independently.';
-      case 'VERY LOW':
-        return 'This contract appears safe with no significant security concerns detected.';
-      default:
-        return 'Analysis completed with unknown risk level.';
-    }
-  };
-
-  const getSeverityIcon = (severity: string) => {
+  const getSeverityStyles = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return '🔴';
+        return 'bg-red-500/10 border-red-500/30 text-red-400';
       case 'high':
-        return '⚠️';
+        return 'bg-orange-500/10 border-orange-500/30 text-orange-400';
       case 'medium':
-        return '⚡';
+        return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
       case 'low':
-        return '✓';
+        return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
       case 'info':
-        return 'ℹ️';
+        return 'bg-green-500/10 border-green-500/30 text-green-400';
       default:
-        return '•';
+        return 'bg-gray-500/10 border-gray-500/30 text-gray-400';
     }
   };
 
@@ -140,257 +109,450 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onNewScan }) => {
 
   const riskPercentage = ApiService.getRiskPercentage(result.risk_score);
 
-  // Group findings by severity
-  const findingsBySeverity = result.findings.reduce((acc, finding) => {
-    if (!acc[finding.severity]) {
-      acc[finding.severity] = [];
+  // Group findings by category
+  const findingsByCategory = result.findings.reduce((acc, finding) => {
+    const category = finding.type || 'general';
+    if (!acc[category]) {
+      acc[category] = [];
     }
-    acc[finding.severity].push(finding);
+    acc[category].push(finding);
     return acc;
   }, {} as Record<string, ScanFinding[]>);
 
-  const severityOrder = ['critical', 'high', 'medium', 'low', 'info'];
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'verification':
+        return <Shield className="h-4 w-4" />;
+      case 'ownership':
+        return <Lock className="h-4 w-4" />;
+      case 'functions':
+        return <Activity className="h-4 w-4" />;
+      case 'holders':
+        return <Users className="h-4 w-4" />;
+      case 'liquidity':
+        return <Droplets className="h-4 w-4" />;
+      case 'honeypot':
+        return <FlaskConical className="h-4 w-4" />;
+      case 'token_type':
+        return <Coins className="h-4 w-4" />;
+      default:
+        return <AlertTriangle className="h-4 w-4" />;
+    }
+  };
+
+  const getCategoryName = (category: string) => {
+    switch (category) {
+      case 'verification':
+        return 'Contract Verification';
+      case 'ownership':
+        return 'Ownership Analysis';
+      case 'functions':
+        return 'Function Analysis';
+      case 'holders':
+        return 'Holder Distribution';
+      case 'liquidity':
+        return 'Liquidity Analysis';
+      case 'honeypot':
+        return 'Honeypot Detection';
+      case 'token_type':
+        return 'Token Classification';
+      case 'source_code':
+        return 'Source Code Analysis';
+      default:
+        return 'General Findings';
+    }
+  };
+
+  // Get advanced analysis data
+  const holderData = (result as any).holder_distribution;
+  const liquidityData = (result as any).liquidity;
+  const honeypotData = (result as any).honeypot_check;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
-      {/* Massive Risk Badge - Above the Fold */}
-      <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-8 sm:p-12 text-center">
-        <div className={`flex justify-center mb-6 ${getRiskLevelColor(result.risk_level)}`}>
-          {getRiskLevelIcon(result.risk_level)}
-        </div>
+    <div className="w-full max-w-7xl mx-auto">
+      {/* Desktop Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <div className={`inline-flex items-center px-6 py-3 rounded-lg border-2 text-2xl sm:text-4xl font-bold mb-4 ${getRiskBadgeBg(result.risk_level)}`}>
-          {result.risk_level}
-        </div>
+        {/* LEFT COLUMN - Key Metrics & Score */}
+        <div className="lg:col-span-1 space-y-6">
 
-        <div className="text-4xl sm:text-6xl font-mono font-bold text-[#e6edf3] mb-4">
-          {result.risk_score}<span className="text-[#6e7681]">/100</span>
-        </div>
+          {/* Risk Score Card */}
+          <div className="bg-gradient-to-br from-[#161b22] to-[#0d1117] rounded-2xl border border-[#21262d] p-6 relative overflow-hidden">
+            {/* Animated background */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${getRiskLevelColor(result.risk_level)} opacity-5`}></div>
 
-        <p className="text-[#8b949e] text-sm sm:text-base max-w-2xl mx-auto mb-6">
-          {getRiskInterpretation(result.risk_level)}
-        </p>
+            <div className="relative z-10">
+              <div className="text-center mb-4">
+                <div className="text-sm text-[#6e7681] uppercase tracking-wider mb-2">Risk Assessment</div>
+                <div className={`text-7xl font-bold font-mono mb-2 ${getRiskTextColor(result.risk_level)}`}>
+                  {result.risk_score}
+                </div>
+                <div className="text-xl text-[#8b949e] mb-4">/ 100</div>
 
-        {/* Progress bar */}
-        <div className="w-full max-w-md mx-auto bg-[#0d1117] rounded-full h-3 border border-[#21262d] mb-6">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH' ? 'bg-gradient-to-r from-red-500 to-red-600' :
-              result.risk_level === 'MEDIUM' ? 'bg-gradient-to-r from-[#ffd700] to-yellow-500' :
-              'bg-gradient-to-r from-[#00ff88] to-[#00cc6a]'
-            }`}
-            style={{ width: `${riskPercentage}%` }}
-          ></div>
-        </div>
+                {/* Risk Level Badge */}
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${
+                  result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH'
+                    ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                    : result.risk_level === 'MEDIUM'
+                    ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
+                    : 'bg-green-500/20 border-green-500/50 text-green-400'
+                }`}>
+                  {result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH' ? (
+                    <XCircle className="h-5 w-5" />
+                  ) : result.risk_level === 'MEDIUM' ? (
+                    <AlertTriangle className="h-5 w-5" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5" />
+                  )}
+                  <span className="font-bold">{result.risk_level}</span>
+                </div>
+              </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <button
-            onClick={onNewScan}
-            className="px-6 py-3 bg-[#00ff88] text-[#0d1117] rounded-lg font-semibold hover:bg-[#00ff88]/90 transition-colors flex items-center justify-center gap-2"
-          >
-            <Zap className="h-5 w-5" />
-            Analyze Another Contract
-          </button>
-          <button
-            onClick={downloadReport}
-            className="px-6 py-3 bg-[#21262d] text-[#e6edf3] rounded-lg font-semibold hover:bg-[#30363d] transition-colors flex items-center justify-center gap-2"
-          >
-            <Download className="h-5 w-5" />
-            Download Report
-          </button>
-        </div>
-      </div>
+              {/* Progress Bar */}
+              <div className="w-full bg-[#0d1117] rounded-full h-2 mb-4 overflow-hidden border border-[#21262d]">
+                <div
+                  className={`h-full bg-gradient-to-r ${getRiskLevelColor(result.risk_level)} transition-all duration-1000 ease-out`}
+                  style={{ width: `${riskPercentage}%` }}
+                ></div>
+              </div>
 
-      {/* Contract Info */}
-      <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-6">
-        <h3 className="text-lg font-semibold text-[#e6edf3] mb-4 flex items-center gap-2">
-          <Info className="h-5 w-5 text-[#00ff88]" />
-          Contract Information
-        </h3>
-
-        <div className="space-y-4">
-          {/* Address with copy */}
-          <div>
-            <div className="text-xs text-[#6e7681] mb-1 uppercase tracking-wide">Address</div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-[#0d1117] px-3 py-2 rounded border border-[#21262d] text-[#00ff88] font-mono text-sm break-all">
-                {result.address}
-              </code>
-              <button
-                onClick={copyAddress}
-                className="p-2 bg-[#21262d] hover:bg-[#30363d] rounded border border-[#30363d] transition-colors"
-                title="Copy address"
-              >
-                {copiedAddress ? (
-                  <Check className="h-4 w-4 text-[#00ff88]" />
-                ) : (
-                  <Copy className="h-4 w-4 text-[#8b949e]" />
-                )}
-              </button>
+              {/* Analysis Confidence */}
+              {result.analysis_confidence !== undefined && (
+                <div className="text-center text-sm text-[#8b949e]">
+                  Analysis Confidence: {Math.round((result.analysis_confidence || 0) * 100)}%
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Token archetype */}
-          {result.archetype && result.archetype.type !== 'unknown' && (
-            <div>
-              <div className="text-xs text-[#6e7681] mb-1 uppercase tracking-wide">Token Type</div>
-              <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-[#00ff88]" />
-                <span className="text-[#e6edf3] font-medium capitalize">
-                  {result.archetype.type.replace('_', ' ')}
-                </span>
-                {result.archetype.confidence && (
-                  <span className="text-xs text-[#8b949e]">
-                    ({Math.round(result.archetype.confidence * 100)}% confidence)
-                  </span>
+          {/* Contract Info Card */}
+          <div className="bg-[#161b22] rounded-xl border border-[#21262d] p-6">
+            <h3 className="text-sm font-semibold text-[#e6edf3] mb-4 uppercase tracking-wider flex items-center gap-2">
+              <Info className="h-4 w-4 text-[#00ff88]" />
+              Contract Info
+            </h3>
+
+            <div className="space-y-4">
+              {/* Token Name/Symbol */}
+              {(result.token_name || result.token_symbol) && (
+                <div>
+                  <div className="text-xs text-[#6e7681] mb-1">Token</div>
+                  <div className="text-[#e6edf3] font-mono">
+                    {result.token_name || 'Unknown'}
+                    {result.token_symbol && <span className="text-[#00ff88]"> ({result.token_symbol})</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Address */}
+              <div>
+                <div className="text-xs text-[#6e7681] mb-1">Address</div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-[#0d1117] px-2 py-1.5 rounded border border-[#21262d] text-[#00ff88] font-mono text-xs truncate">
+                    {result.address}
+                  </code>
+                  <button
+                    onClick={copyAddress}
+                    className="p-1.5 bg-[#21262d] hover:bg-[#30363d] rounded border border-[#30363d] transition-colors"
+                    title="Copy address"
+                  >
+                    {copiedAddress ? (
+                      <Check className="h-3 w-3 text-[#00ff88]" />
+                    ) : (
+                      <Copy className="h-3 w-3 text-[#8b949e]" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Verification Status */}
+              {result.is_verified !== undefined && (
+                <div>
+                  <div className="text-xs text-[#6e7681] mb-1">Verification</div>
+                  <div className={`flex items-center gap-2 ${result.is_verified ? 'text-green-400' : 'text-orange-400'}`}>
+                    {result.is_verified ? (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm">Verified</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-sm">Unverified</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Ownership Status */}
+              {result.is_renounced !== undefined && (
+                <div>
+                  <div className="text-xs text-[#6e7681] mb-1">Ownership</div>
+                  <div className={`flex items-center gap-2 ${result.is_renounced ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {result.is_renounced ? (
+                      <>
+                        <Unlock className="h-4 w-4" />
+                        <span className="text-sm">Renounced</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4" />
+                        <span className="text-sm">Active Owner</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Scan Type */}
+              <div>
+                <div className="text-xs text-[#6e7681] mb-1">Scan Type</div>
+                <div className="flex items-center gap-2 text-[#e6edf3]">
+                  {result.quick_scan ? (
+                    <>
+                      <Zap className="h-4 w-4 text-[#ffd700]" />
+                      <span className="text-sm">Quick Scan</span>
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-4 w-4 text-[#00ff88]" />
+                      <span className="text-sm">Full Scan</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Scan Time */}
+              {result.scan_time && (
+                <div>
+                  <div className="text-xs text-[#6e7681] mb-1">Analyzed</div>
+                  <div className="flex items-center gap-2 text-[#e6edf3]">
+                    <Clock className="h-4 w-4 text-[#8b949e]" />
+                    <span className="text-sm">{new Date(result.scan_time).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* BSCScan Link */}
+            <a
+              href={`https://bscscan.com/address/${result.address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex items-center justify-center gap-2 w-full px-4 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-[#00ff88] hover:bg-[#21262d] transition-colors text-sm"
+            >
+              View on BSCScan
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+
+          {/* Advanced Metrics */}
+          {!result.quick_scan && (holderData || liquidityData || honeypotData) && (
+            <div className="bg-[#161b22] rounded-xl border border-[#21262d] p-6">
+              <h3 className="text-sm font-semibold text-[#e6edf3] mb-4 uppercase tracking-wider flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-[#00ff88]" />
+                Advanced Metrics
+              </h3>
+
+              <div className="space-y-3">
+                {/* Holder Metrics */}
+                {holderData?.metrics && (
+                  <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="h-4 w-4 text-[#00ff88]" />
+                      <span className="text-xs font-semibold text-[#e6edf3] uppercase">Holders</span>
+                    </div>
+                    <div className="space-y-1 text-xs text-[#8b949e]">
+                      <div className="flex justify-between">
+                        <span>Total:</span>
+                        <span className="text-[#e6edf3]">{holderData.metrics.total_holders?.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Top 10:</span>
+                        <span className="text-[#e6edf3]">{holderData.metrics.top_10_concentration?.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Whales:</span>
+                        <span className="text-[#e6edf3]">{holderData.metrics.whale_count}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Liquidity Metrics */}
+                {liquidityData?.metrics && (
+                  <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Droplets className="h-4 w-4 text-[#00ff88]" />
+                      <span className="text-xs font-semibold text-[#e6edf3] uppercase">Liquidity</span>
+                    </div>
+                    <div className="space-y-1 text-xs text-[#8b949e]">
+                      <div className="flex justify-between">
+                        <span>Total USD:</span>
+                        <span className="text-[#e6edf3]">${liquidityData.metrics.total_liquidity_usd?.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>LP Locked:</span>
+                        <span className="text-[#e6edf3]">{liquidityData.metrics.lp_locked_percent?.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>LP Burned:</span>
+                        <span className="text-[#e6edf3]">{liquidityData.metrics.lp_burned_percent?.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Honeypot Status */}
+                {honeypotData && (
+                  <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FlaskConical className="h-4 w-4 text-[#00ff88]" />
+                      <span className="text-xs font-semibold text-[#e6edf3] uppercase">Honeypot</span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className={`flex items-center gap-2 ${honeypotData.is_honeypot ? 'text-red-400' : 'text-green-400'}`}>
+                        {honeypotData.is_honeypot ? (
+                          <>
+                            <XCircle className="h-4 w-4" />
+                            <span className="font-semibold">DETECTED</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4" />
+                            <span className="font-semibold">Not Detected</span>
+                          </>
+                        )}
+                      </div>
+                      {honeypotData.simulation_confidence !== undefined && (
+                        <div className="text-[#8b949e]">
+                          Confidence: {Math.round(honeypotData.simulation_confidence * 100)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Metadata grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-[#21262d]">
-            {result.quick_scan !== undefined && (
-              <div>
-                <div className="text-xs text-[#6e7681] mb-1">Scan Type</div>
-                <div className="flex items-center gap-1 text-[#e6edf3]">
-                  {result.quick_scan ? (
-                    <>
-                      <Zap className="h-4 w-4 text-[#ffd700]" />
-                      <span className="text-sm">Quick</span>
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="h-4 w-4 text-[#00ff88]" />
-                      <span className="text-sm">Full</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {result.scan_time && (
-              <div>
-                <div className="text-xs text-[#6e7681] mb-1">Scanned</div>
-                <div className="flex items-center gap-1 text-[#e6edf3]">
-                  <Clock className="h-4 w-4 text-[#8b949e]" />
-                  <span className="text-sm">{new Date(result.scan_time).toLocaleDateString()}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="col-span-2 sm:col-span-1">
-              <div className="text-xs text-[#6e7681] mb-1">Blockchain</div>
-              <div className="text-sm text-[#e6edf3]">
-                <a
-                  href={`https://bscscan.com/address/${result.address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[#00ff88] hover:text-[#00cc6a] transition-colors"
-                >
-                  View on BSCScan
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            </div>
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            <button
+              onClick={onNewScan}
+              className="w-full px-4 py-3 bg-gradient-to-r from-[#00ff88] to-[#00cc6a] text-[#0d1117] rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              <Zap className="h-5 w-5" />
+              New Scan
+            </button>
+            <button
+              onClick={downloadReport}
+              className="w-full px-4 py-3 bg-[#21262d] text-[#e6edf3] rounded-lg font-semibold hover:bg-[#30363d] transition-colors flex items-center justify-center gap-2"
+            >
+              <Download className="h-5 w-5" />
+              Download Report
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Security Findings */}
-      {result.findings.length > 0 ? (
-        <div className="bg-[#161b22] rounded-lg border border-[#21262d] p-6">
-          <h3 className="text-lg font-semibold text-[#e6edf3] mb-4 flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-[#ffd700]" />
-            Security Findings ({result.findings.length})
-          </h3>
+        {/* RIGHT COLUMN - Findings */}
+        <div className="lg:col-span-2 space-y-6">
 
-          <div className="space-y-3">
-            {result.findings.map((finding, index) => {
-              const isExpanded = expandedFindings.has(index);
-              const hasDetails = finding.details && finding.details.length > 0;
+          {/* Findings Header */}
+          <div className="bg-gradient-to-br from-[#161b22] to-[#0d1117] rounded-2xl border border-[#21262d] p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-[#ffd700]" />
+                <h2 className="text-2xl font-bold text-[#e6edf3]">Security Findings</h2>
+              </div>
+              <div className="text-3xl font-bold text-[#00ff88]">{result.findings.length}</div>
+            </div>
+          </div>
 
-              return (
-                <div
-                  key={index}
-                  className="bg-[#0d1117] border border-[#21262d] rounded-lg overflow-hidden"
-                >
-                  <button
-                    onClick={() => hasDetails && toggleFinding(index)}
-                    className={`w-full p-4 text-left transition-colors ${
-                      hasDetails ? 'hover:bg-[#161b22] cursor-pointer' : 'cursor-default'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg flex-shrink-0 mt-0.5">
-                        {getSeverityIcon(finding.severity)}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-[#e6edf3] font-medium text-sm sm:text-base">
-                            {finding.message}
-                          </h4>
-                          {hasDetails && (
-                            <div className="flex-shrink-0">
-                              {isExpanded ? (
-                                <ChevronDown className="h-5 w-5 text-[#8b949e]" />
-                              ) : (
-                                <ChevronRight className="h-5 w-5 text-[#8b949e]" />
-                              )}
+          {/* Findings by Category */}
+          {result.findings.length > 0 ? (
+            <div className="space-y-4">
+              {Object.entries(findingsByCategory).map(([category, findings]) => (
+                <div key={category} className="bg-[#161b22] rounded-xl border border-[#21262d] overflow-hidden">
+                  <div className="bg-[#0d1117] border-b border-[#21262d] px-4 py-3">
+                    <div className="flex items-center gap-2 text-[#00ff88]">
+                      {getCategoryIcon(category)}
+                      <h3 className="font-semibold uppercase tracking-wider text-sm">{getCategoryName(category)}</h3>
+                      <span className="text-xs text-[#6e7681]">({findings.length})</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-2">
+                    {findings.map((finding) => {
+                      const globalIndex = result.findings.indexOf(finding);
+                      const isExpanded = expandedFindings.has(globalIndex);
+                      const hasDetails = finding.details && finding.details.length > 0;
+
+                      return (
+                        <div
+                          key={globalIndex}
+                          className={`rounded-lg border overflow-hidden transition-colors ${getSeverityStyles(finding.severity)}`}
+                        >
+                          <button
+                            onClick={() => hasDetails && toggleFinding(globalIndex)}
+                            className={`w-full p-3 text-left transition-colors ${
+                              hasDetails ? 'hover:bg-[#0d1117]/50 cursor-pointer' : 'cursor-default'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-sm mb-1">
+                                      {finding.message}
+                                    </h4>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs uppercase font-bold tracking-wider">
+                                        {finding.severity}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {hasDetails && (
+                                    <div className="flex-shrink-0">
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-5 w-5" />
+                                      ) : (
+                                        <ChevronRight className="h-5 w-5" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+
+                          {isExpanded && hasDetails && (
+                            <div className="px-3 pb-3 border-t border-current/20 pt-3">
+                              <p className="text-xs opacity-80 whitespace-pre-wrap leading-relaxed">
+                                {finding.details}
+                              </p>
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-[#6e7681] uppercase tracking-wide">
-                            {finding.severity}
-                          </span>
-                          {finding.type && (
-                            <>
-                              <span className="text-[#6e7681]">•</span>
-                              <span className="text-xs text-[#8b949e]">
-                                {finding.type.replace('_', ' ')}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-
-                  {isExpanded && hasDetails && (
-                    <div className="px-4 pb-4 border-t border-[#21262d] pt-4 mt-2">
-                      <p className="text-sm text-[#8b949e] whitespace-pre-wrap">
-                        {finding.details}
-                      </p>
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-[#161b22] rounded-xl border border-[#00ff88]/30 p-12 text-center">
+              <CheckCircle className="h-16 w-16 text-[#00ff88] mx-auto mb-4" />
+              <h3 className="text-2xl font-bold text-[#e6edf3] mb-2">
+                No Security Issues Found
+              </h3>
+              <p className="text-[#8b949e]">
+                This contract passed all security checks. However, always conduct your own research.
+              </p>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="bg-[#161b22] rounded-lg border border-[#00ff88]/30 p-8 text-center">
-          <CheckCircle className="h-12 w-12 text-[#00ff88] mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-[#e6edf3] mb-2">
-            No Security Issues Found
-          </h3>
-          <p className="text-[#8b949e]">
-            This contract passed all security checks. However, always conduct your own research.
-          </p>
-        </div>
-      )}
-
-      {/* Bottom action button */}
-      <div className="flex justify-center">
-        <button
-          onClick={onNewScan}
-          className="px-6 py-3 bg-[#21262d] text-[#e6edf3] rounded-lg font-medium hover:bg-[#30363d] transition-colors flex items-center gap-2"
-        >
-          <Zap className="h-5 w-5" />
-          Analyze Another Contract
-        </button>
       </div>
     </div>
   );

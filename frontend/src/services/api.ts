@@ -6,7 +6,6 @@ import {
   SynchronousAnalysisResponse,
   HealthCheck,
   ApiInfo,
-  ApiError,
 } from '../types/api';
 
 // Create axios instance with default config

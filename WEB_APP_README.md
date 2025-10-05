@@ -12,26 +12,42 @@ A professional full-stack web application built around the existing Python BSC S
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js (v20 or higher) - Required for Vite 6+
 - Python 3.8+
 - All Python dependencies from `requirements.txt`
 
-### Option 1: Start Both Services (Recommended)
+**Note**: If you have Node 18 or earlier, upgrade using:
 ```bash
-./start-fullstack.sh
+# Using nvm (recommended)
+nvm install 20
+nvm use 20
 ```
-This will start both backend and frontend servers concurrently.
 
-### Option 2: Start Services Separately
+### Start Full Stack (Recommended)
+```bash
+./start.sh
+# or
+npm run fullstack
+```
+This unified script will:
+- Check dependencies and install if needed
+- Start backend server (port 3001)
+- Start frontend server (port 3000)
+- Verify both servers are healthy
+- Clean up processes on exit
+
+### Start Services Individually (Development)
 
 **Backend Only:**
 ```bash
-./start-backend.sh
+npm start
+# or with auto-reload
+npm run dev
 ```
 
 **Frontend Only:**
 ```bash
-./start-frontend.sh
+cd frontend && npm run dev
 ```
 
 ## 📱 Usage

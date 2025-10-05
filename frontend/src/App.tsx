@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ContractAnalysisForm from './components/ContractAnalysisForm';
 import LoadingState from './components/LoadingState';
 import ScanResults from './components/ScanResults';
 import { ApiService } from './services/api';
-import { ScanResult, AnalysisStatus } from './types/api';
+import { ScanResult } from './types/api';
 import { Shield, Github, ExternalLink, Trash2 } from 'lucide-react';
 import './App.css';
 
@@ -210,7 +210,7 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-[#8b949e]">
-              © 2024 BSC Security Scanner - Built for security analysis and educational purposes
+              © 2025 BSC Security Scanner - Built for security analysis and educational purposes
             </div>
             <div className="flex items-center gap-4 sm:gap-6 text-sm text-[#8b949e]">
               <span>Binance Smart Chain</span>

@@ -5,6 +5,65 @@ All notable changes to the BSC Security Scanner project will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-10-05
+
+### 🚀 Advanced Analyzers Added
+
+#### New Modular Architecture
+- **Holder Distribution Analyzer** (`holder_analyzer.py`)
+  - Fetches top 50 holders via BSCScan API
+  - Labels special addresses (burn, LP pools, deployer, owner)
+  - Calculates concentration metrics and whale detection
+  - Risk scoring based on holder distribution
+
+- **Liquidity Pool Analyzer** (`liquidity_analyzer.py`)
+  - Multi-DEX support (PancakeSwap V1/V2, BiSwap, ApeSwap)
+  - LP token distribution analysis (burned/locked/unlocked)
+  - Rug pull risk detection
+  - Lock platform detection (PinkLock, Mudra, Unicrypt)
+
+- **Transaction Simulator** (`transaction_simulator.py`)
+  - Buy/sell simulation via PancakeSwap Router
+  - Honeypot detection (cannot sell)
+  - Tax asymmetry detection
+  - Round-trip slippage calculation
+
+### 🛠️ Infrastructure Improvements
+
+#### Unified Startup System
+- **New `start.sh` script** - Single command to start full stack
+  - Automatic dependency checking and installation
+  - Health checks for both backend and frontend
+  - Port cleanup and process management
+  - Detailed logging to backend.log and frontend.log
+  - Visual feedback with color-coded status
+
+- **NPM Script Integration** - `npm run fullstack` command
+- **QUICKSTART.md** - Quick reference guide for new users
+- **Deprecated Scripts Removed** - Cleaned up old startup files
+
+#### Configuration-Driven Design
+- **DEX Support** - Add new DEXs by editing `config.py` `DEX_FACTORIES`
+- **Lock Platforms** - Add new lock contracts via `config.py` `LOCK_CONTRACTS`
+- **Special Addresses** - Centralized burn and zero address definitions
+
+### 📚 Documentation
+
+- **Updated CLAUDE.md** - Complete architecture documentation
+  - Modular analyzer design explained
+  - Analysis flow (quick scan vs full scan)
+  - Report output structure with examples
+  - Development guide for adding new analyzers
+
+- **Configuration Guide** - All `config.py` constants documented
+- **Report Structure** - JSON output format fully documented
+
+### 🐛 Bug Fixes
+
+- Fixed "No response from server" error on fullstack startup
+- Backend now properly monitored with health checks before frontend starts
+- Process cleanup on Ctrl+C now works correctly
+
 ## [1.1.0] - 2025-10-04
 
 ### 🎉 Major Features Added

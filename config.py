@@ -54,6 +54,28 @@ BSC_CONTRACTS = {
     "usdt": "0x55d398326f99059fF775485246999027B3197955"
 }
 
+# DEX Factory Addresses for Liquidity Pool Discovery
+DEX_FACTORIES = {
+    "PancakeSwap V2": "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73",
+    "PancakeSwap V1": "0xBCfCcbde45cE874adCB698cC183deBcF17952812",
+    "BiSwap": "0x858E3312ed3A876947EA49d572A7C42DE08af7EE",
+    "ApeSwap": "0x0841BD0B734E4F5853f0dD8d7Ea041c241fb0Da6"
+}
+
+# Known LP Lock Contract Addresses
+LOCK_CONTRACTS = {
+    "PinkLock": "0x407993575c91ce7643a4d4cCACc9A98c36eE1BBE",  # BSC PinkLock V2
+    "Mudra": "0x3F4D6bf08CB7A003488Ef082102C2e6418a4551e",
+    "Unicrypt": "0xC8C4419c4Bd7d75F3F7c2ef319Dd470BC33F0Fa3",  # BSC Unicrypt
+    "Team Finance": "0x0000000000000000000000000000000000000000"  # Placeholder - update if used
+}
+
+# Special Addresses (Burn, Zero, etc)
+SPECIAL_ADDRESSES = {
+    "burn_dead": "0x000000000000000000000000000000000000dEaD",
+    "burn_zero": "0x0000000000000000000000000000000000000000"
+}
+
 # Common dangerous function signatures for BEP-20 tokens
 DANGEROUS_FUNCTION_SIGNATURES = {
     # Minting functions
