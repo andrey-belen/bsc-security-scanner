@@ -20,6 +20,8 @@ const healthRoutes = require('./routes/health');
 const analyzeRoutes = require('./routes/analyze');
 const cacheRoutes = require('./routes/cache');
 
+const path = require('path');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -28,8 +30,11 @@ app.use(helmet());
 app.use(compression());
 
 // CORS configuration
+const corsOrigin = process.env.NODE_ENV === 'production'
+  ? true  // Allow same-origin in production
+  : process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: corsOrigin,
   credentials: true
 }));
 
@@ -44,6 +49,24 @@ app.use(morgan('combined'));
 app.use('/', healthRoutes);
 app.use('/api', analyzeRoutes);
 app.use('/', cacheRoutes);
+
+// Serve frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const fs = require('fs');
+  // Try public/ first, fall back to frontend/dist
+  const staticDir = fs.existsSync(path.join(__dirname, 'public', 'index.html'))
+    ? path.join(__dirname, 'public')
+    : path.join(__dirname, 'frontend', 'dist');
+
+  console.log(`📁 Serving static files from: ${staticDir}`);
+  app.use(express.static(staticDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(staticDir, 'index.html'));
+  });
+}
 
 // 404 handler
 app.use((req, res) => {
