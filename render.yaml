@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: bsc-security-scanner
+    runtime: docker
+    envVars:
+      - key: ETHERSCAN_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: RATE_LIMIT_MAX
+        value: "10"
+    healthCheckPath: /health

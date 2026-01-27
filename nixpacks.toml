@@ -1,0 +1,18 @@
+# Nixpacks config for Railway - Node.js + Python
+[phases.setup]
+nixPkgs = ["nodejs_20", "python311", "python311Packages.pip"]
+
+[phases.install]
+cmds = [
+  "npm ci",
+  "pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm ci && npm run build",
+  "mkdir -p public && cp -r frontend/dist/* public/"
+]
+
+[start]
+cmd = "npm start"
